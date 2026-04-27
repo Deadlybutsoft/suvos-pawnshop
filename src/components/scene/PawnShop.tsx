@@ -1,4 +1,5 @@
 import { Box, Cylinder, Sphere } from "@react-three/drei";
+import { useState } from "react";
 
 export function PawnShop() {
   const roomDepth = 8.0;
@@ -27,60 +28,105 @@ function Room({
   height: number;
   depth: number;
 }) {
+  const [doorOpen, setDoorOpen] = useState(false);
+
+  // Door dimensions
+  const doorW = 0.8;   // each door panel width
+  const doorH = 2.2;
+  const gapW = doorW * 2; // total opening = 1.6
+  const sideW = (width - gapW) / 2; // remaining wall on each side
+
+  // Hinge positions (inner edge of each door)
+  // Left door hinges at x = -gapW/2 = -0.8, right at x = +0.8
+  // Closed: door lies flat in wall plane (rotation.y = 0)
+  // Open: door swings 85deg inward
+  const openAngle = Math.PI * 0.47;
+
   return (
     <group>
-      {/* Bright polished floor — light gray vinyl/tile look */}
+      {/* Floor */}
       <Box args={[width, 0.1, depth]} position={[0, -0.05, 0]} receiveShadow>
-        <meshStandardMaterial
-          color="#e2e8f0"
-          roughness={0.1}
-          metalness={0.05}
-        />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.1} metalness={0.05} />
       </Box>
 
-      {/* Ceiling — Very bright white */}
+      {/* Ceiling */}
       <Box args={[width, 0.1, depth]} position={[0, height + 0.05, 0]}>
         <meshStandardMaterial color="#ffffff" roughness={1} />
       </Box>
 
-      {/* DARK GRAY WALLS */}
       {/* Back wall */}
+      <Box args={[width, height, 0.1]} position={[0, height / 2, -depth / 2]} receiveShadow>
+        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+      </Box>
+
+      {/* Front wall — left panel */}
       <Box
-        args={[width, height, 0.1]}
-        position={[0, height / 2, -depth / 2]}
+        args={[sideW, height, 0.1]}
+        position={[-width / 2 + sideW / 2, height / 2, depth / 2]}
+        receiveShadow
+      >
+        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+      </Box>
+      {/* Front wall — right panel */}
+      <Box
+        args={[sideW, height, 0.1]}
+        position={[width / 2 - sideW / 2, height / 2, depth / 2]}
+        receiveShadow
+      >
+        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+      </Box>
+      {/* Door top beam */}
+      <Box
+        args={[gapW, height - doorH, 0.1]}
+        position={[0, doorH + (height - doorH) / 2, depth / 2]}
         receiveShadow
       >
         <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
       </Box>
 
-      {/* Front wall (near entrance) */}
-      <Box
-        args={[width, height, 0.1]}
-        position={[0, height / 2, depth / 2]}
-        receiveShadow
-      >
-        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
-      </Box>
+      {/* Left door — hinged at left edge, opens inward */}
+      <group position={[-gapW / 2, 0, depth / 2]} rotation={[0, doorOpen ? openAngle : 0, 0]}>
+        <Box
+          args={[doorW, doorH, 0.06]}
+          position={[doorW / 2, doorH / 2, 0]}
+          castShadow
+          onClick={() => setDoorOpen(o => !o)}
+        >
+          <meshStandardMaterial color="#5a3a1f" roughness={0.6} />
+        </Box>
+        {/* Handle */}
+        <Box args={[0.06, 0.06, 0.12]} position={[doorW - 0.12, doorH / 2, 0.06]}>
+          <meshStandardMaterial color="#d4a017" metalness={0.8} roughness={0.2} />
+        </Box>
+      </group>
+
+      {/* Right door — hinged at right edge, opens inward */}
+      <group position={[gapW / 2, 0, depth / 2]} rotation={[0, doorOpen ? -openAngle : 0, 0]}>
+        <Box
+          args={[doorW, doorH, 0.06]}
+          position={[-doorW / 2, doorH / 2, 0]}
+          castShadow
+          onClick={() => setDoorOpen(o => !o)}
+        >
+          <meshStandardMaterial color="#5a3a1f" roughness={0.6} />
+        </Box>
+        {/* Handle */}
+        <Box args={[0.06, 0.06, 0.12]} position={[-(doorW - 0.12), doorH / 2, 0.06]}>
+          <meshStandardMaterial color="#d4a017" metalness={0.8} roughness={0.2} />
+        </Box>
+      </group>
 
       {/* Left wall */}
-      <Box
-        args={[0.1, height, depth]}
-        position={[-width / 2 - 0.05, height / 2, 0]}
-        receiveShadow
-      >
+      <Box args={[0.1, height, depth]} position={[-width / 2 - 0.05, height / 2, 0]} receiveShadow>
         <meshStandardMaterial color="#111111" roughness={0.9} />
       </Box>
 
       {/* Right wall */}
-      <Box
-        args={[0.1, height, depth]}
-        position={[width / 2 + 0.05, height / 2, 0]}
-        receiveShadow
-      >
+      <Box args={[0.1, height, depth]} position={[width / 2 + 0.05, height / 2, 0]} receiveShadow>
         <meshStandardMaterial color="#111111" roughness={0.9} />
       </Box>
 
-      {/* Fun accent: Colorful skirting boards */}
+      {/* Skirting board */}
       <Box args={[width, 0.2, 0.12]} position={[0, 0.1, -depth / 2 + 0.01]}>
         <meshStandardMaterial color="#38bdf8" />
       </Box>

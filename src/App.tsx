@@ -38,6 +38,7 @@ import {
   Pause,
   ChevronLeft,
   Send,
+  Package,
 } from "lucide-react";
 import { GoogleGenAI } from "@google/genai";
 import {
@@ -126,6 +127,12 @@ export default function App() {
   const [isPhoneOpen, setIsPhoneOpen] = useState(false);
   const [phoneApp, setPhoneApp] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState("");
+
+  // Inventory State
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [inventory, setInventory] = useState<{name: string; region: string; boughtFor: number; date: string}[]>([]);
+  const [tradeHistory, setTradeHistory] = useState<{name: string; type: "bought" | "sold"; amount: number; date: string}[]>([]);
+  const [inventorySearch, setInventorySearch] = useState("");
 
   // Messages App State
   const [messagesAppActiveChat, setMessagesAppActiveChat] = useState<
@@ -494,6 +501,20 @@ export default function App() {
           },
           ...prev,
         ]);
+
+        // Update inventory
+        if (npcObj.npc.type === "SELLER") {
+          const itemData = { name: npcObj.item, region: "", boughtFor: dealAmount, date: new Date().toLocaleDateString() };
+          setInventory(prev => [...prev, itemData]);
+          setTradeHistory(prev => [{ name: npcObj.item, type: "bought", amount: dealAmount, date: new Date().toLocaleDateString() }, ...prev]);
+        } else if (npcObj.npc.type === "BUYER" || npcObj.npc.type === "COLLECTOR") {
+          setInventory(prev => {
+            const idx = prev.findIndex(i => i.name === npcObj.item);
+            if (idx === -1) return prev;
+            return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+          });
+          setTradeHistory(prev => [{ name: npcObj.item, type: "sold", amount: dealAmount, date: new Date().toLocaleDateString() }, ...prev]);
+        }
       }
 
       const isLeavingAction = text.includes("[ACTION: LEAVE]") || isDealAction;
@@ -685,7 +706,7 @@ export default function App() {
                 </button>
               </header>
 
-              <div className="flex-1 space-y-4 overflow-y-auto p-6">
+              <div className="flex-1 space-y-4 overflow-y-auto [&::-webkit-scrollbar]:hidden p-6">
                 <div className="game-setting-row p-5">
                   <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
@@ -767,6 +788,98 @@ export default function App() {
                 </button>
               </footer>
             </section>
+          </div>
+        </div>
+      )}
+
+      {/* Inventory Modal */}
+      {isInventoryOpen && (
+        <div
+          className="game-overlay pointer-events-auto absolute inset-0 z-50 flex items-center justify-center p-4"
+          onClick={() => setIsInventoryOpen(false)}
+        >
+          <div
+            className="game-menu-shell w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="game-menu-header flex items-center justify-between border-b p-6">
+              <div className="flex items-center gap-4">
+                <Package size={28} className="text-[#ffcc4d]" />
+                <span className="game-title text-2xl uppercase tracking-widest">Inventory</span>
+              </div>
+              <button onClick={() => setIsInventoryOpen(false)} className="game-icon-button p-3 rounded-xl">
+                <X size={22} />
+              </button>
+            </div>
+            <div className="px-6 pt-5 pb-2">
+              <input
+                className="game-input w-full px-5 py-3 rounded-xl text-base"
+                placeholder="Search items..."
+                value={inventorySearch}
+                onChange={e => setInventorySearch(e.target.value)}
+              />
+            </div>
+            <div className="p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{maxHeight: "62vh"}}>
+              {inventory.filter(i => i.name.toLowerCase().includes(inventorySearch.toLowerCase())).length === 0 && tradeHistory.filter(i => i.name.toLowerCase().includes(inventorySearch.toLowerCase())).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-4">
+                  <Package size={72} className="text-[#c79f60] opacity-40" />
+                  <p className="game-text-dim text-base uppercase tracking-widest">No items found</p>
+                </div>
+              ) : (
+                <>
+                  {inventory.filter(i => i.name.toLowerCase().includes(inventorySearch.toLowerCase())).length > 0 && (
+                    <>
+                      <div className="game-text-dim text-xs uppercase tracking-widest mb-3">In Stock</div>
+                      <div className="grid grid-cols-2 gap-5 mb-8">
+                        {inventory.filter(i => i.name.toLowerCase().includes(inventorySearch.toLowerCase())).map((item, i) => (
+                          <div key={i} className="game-panel flex items-center justify-between px-8 py-8 rounded-2xl min-h-[160px]">
+                            <div>
+                              <div className="game-label text-lg font-bold">{item.name}</div>
+                              <div className="game-text-dim text-sm mt-2">{item.date}</div>
+                              <div className="game-text-muted text-xs mt-1 uppercase tracking-wide">Paid</div>
+                            </div>
+                            <div className="game-value-chip text-base px-5 py-3 rounded-xl font-bold">
+                              ${item.boughtFor.toLocaleString()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {tradeHistory.filter(i => i.name.toLowerCase().includes(inventorySearch.toLowerCase())).length > 0 && (
+                    <>
+                      <div className="game-text-dim text-xs uppercase tracking-widest mb-3">Trade History</div>
+                      <div className="grid grid-cols-2 gap-5">
+                        {tradeHistory.filter(i => i.name.toLowerCase().includes(inventorySearch.toLowerCase())).map((item, i) => (
+                          <div key={i} className="game-panel flex items-center justify-between px-8 py-8 rounded-2xl min-h-[160px]" style={{opacity: 0.85}}>
+                            <div>
+                              <div className="game-label text-lg font-bold">{item.name}</div>
+                              <div className="game-text-dim text-sm mt-2">{item.date}</div>
+                              <div className="text-xs mt-1 uppercase tracking-wide font-bold" style={{color: item.type === "sold" ? "var(--game-success)" : "var(--game-accent)"}}>
+                                {item.type === "sold" ? "▲ Sold" : "▼ Bought"}
+                              </div>
+                            </div>
+                            <div className="text-base px-5 py-3 rounded-xl font-bold" style={{
+                              background: item.type === "sold" ? "rgba(87,209,99,0.15)" : "rgba(255,204,77,0.12)",
+                              color: item.type === "sold" ? "var(--game-success)" : "var(--game-accent)",
+                              border: `1px solid ${item.type === "sold" ? "var(--game-success)" : "var(--game-border)"}`,
+                            }}>
+                              ${item.amount.toLocaleString()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="game-menu-footer border-t p-5 flex justify-between items-center">
+              <span className="game-text-muted text-sm uppercase tracking-widest">{inventory.length} item{inventory.length !== 1 ? "s" : ""} in stock</span>
+              <span className="game-text-accent text-base font-bold">
+                Total: ${inventory.reduce((s, i) => s + i.boughtFor, 0).toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -911,6 +1024,24 @@ export default function App() {
         </div>
       )}
 
+      {/* Inventory Button */}
+      <div className="absolute bottom-8 left-8 z-40 pointer-events-auto">
+        <button
+          onClick={() => { playClickSound(); setIsInventoryOpen(true); }}
+          className="game-icon-button p-4 rounded-3xl shadow-2xl transition-all duration-150 hover:scale-110 active:scale-75 active:opacity-80 flex items-center justify-center gap-2 text-[#ffd877] relative group"
+        >
+          <Package size={32} />
+          {inventory.length > 0 && (
+            <span className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#ffcc4d] text-[#25180f] text-[10px] font-black flex items-center justify-center">
+              {inventory.length}
+            </span>
+          )}
+          <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-all game-value-chip text-xs px-2 py-1 rounded whitespace-nowrap">
+            Inventory
+          </span>
+        </button>
+      </div>
+
       {/* Phone Button & Other Controls */}
       <div className="absolute bottom-8 right-8 z-40 pointer-events-auto flex flex-col items-end gap-3">
         <div className="flex gap-3 items-center">
@@ -965,9 +1096,10 @@ export default function App() {
             >
               <div className="absolute inset-0 bg-black/10 pointer-events-none"></div>
               {/* Notch / Dynamic Island */}
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-full z-20 flex items-center justify-end px-2">
-                <div className="w-2 h-2 rounded-full bg-white/10 mr-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"></div>
-              </div>
+              <div className={`absolute top-0 left-0 right-0 z-20 ${phoneApp ? "bg-black" : ""}`}>
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-full z-20 flex items-center justify-end px-2">
+                  <div className="w-2 h-2 rounded-full bg-white/10 mr-1 shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"></div>
+                </div>
 
               {/* Status Bar */}
               <div
@@ -991,11 +1123,12 @@ export default function App() {
                   </div>
                 </div>
               </div>
+              </div>
 
               {/* Content */}
               <div className="flex-1 relative z-10 overflow-hidden flex flex-col">
                 {!phoneApp ? (
-                  <div className="flex-1 flex flex-col justify-between pt-6 pb-6 px-4">
+                  <div className="flex-1 flex flex-col justify-between pt-14 pb-6 px-4">
                     {/* Grid Apps */}
                     <div className="grid grid-cols-4 gap-x-4 gap-y-6">
                       {[
@@ -1018,17 +1151,7 @@ export default function App() {
                           },
                         },
                         {
-                          name: "Camera",
-                          icon: Camera,
-                          color: "bg-[#eeeeee]",
-                          iconColor: "text-[#1C1C1E]",
-                          action: () => {
-                            playClickSound();
-                            setPhoneApp("camera");
-                          },
-                        },
-                        {
-                          name: "Eleven Labs",
+                          name: "ElevenLabs",
                           icon: Pause,
                           color: "bg-[#1C1C1E] border border-white/10",
                           link: "https://elevenlabs.io",
@@ -1072,7 +1195,7 @@ export default function App() {
                     </div>
 
                     {/* Dock */}
-                    <div className="bg-white/30 backdrop-blur-2xl rounded-[32px] p-4 flex justify-between shadow-lg mx-auto w-full max-w-[92%] border border-white/20 mb-2 gap-2">
+                    <div className="bg-white/25 backdrop-blur-2xl rounded-[24px] px-3 py-2 flex justify-between shadow-lg mx-auto w-full max-w-[96%] border border-white/20 mb-2 gap-1">
                       {[
                         {
                           name: "Phone",
@@ -1093,6 +1216,16 @@ export default function App() {
                           },
                         },
                         {
+                          name: "Camera",
+                          icon: Camera,
+                          color: "bg-[#eeeeee]",
+                          iconColor: "text-[#1C1C1E]",
+                          action: () => {
+                            playClickSound();
+                            setPhoneApp("camera");
+                          },
+                        },
+                        {
                           name: "Settings",
                           icon: SettingsIcon,
                           color: "bg-gradient-to-b from-[#B8B8B8] to-[#8E8E93]",
@@ -1105,15 +1238,15 @@ export default function App() {
                         <button
                           key={i}
                           onClick={app.action}
-                          className={`w-[50px] h-[50px] ${app.color} rounded-[14px] flex items-center justify-center text-white shadow-sm active:scale-75 active:opacity-60 transition-all duration-150`}
+                          className={`w-[44px] h-[44px] ${app.color} rounded-[12px] flex items-center justify-center text-white shadow-sm active:scale-75 active:opacity-60 transition-all duration-150`}
                         >
-                          <app.icon size={26} strokeWidth={1.5} />
+                          <app.icon size={22} strokeWidth={1.5} className={(app as any).iconColor || ""} />
                         </button>
                       ))}
                     </div>
                   </div>
                 ) : phoneApp === "bank" ? (
-                  <div className="bg-black text-white absolute inset-0 z-20 flex flex-col pt-6">
+                  <div className="bg-black text-white absolute inset-0 z-20 flex flex-col pt-14">
                     <div className="px-6 pb-6 pt-4 bg-gradient-to-b from-[#0A84FF]/20 to-black/0 border-b border-white/5">
                       <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-bold tracking-tight">
@@ -1130,7 +1263,7 @@ export default function App() {
                         ${money.toLocaleString()}
                       </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto bg-black px-6 pt-6 pb-12">
+                    <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden bg-black px-6 pt-6 pb-12">
                       <h3 className="text-sm font-bold text-white/50 uppercase tracking-widest mb-4">
                         Recent Activity
                       </h3>
@@ -1173,7 +1306,7 @@ export default function App() {
                     </div>
                   </div>
                 ) : phoneApp === "market" ? (
-                  <div className="bg-[#1C1C1E] text-white absolute inset-0 z-20 flex flex-col pt-6">
+                  <div className="bg-[#1C1C1E] text-white absolute inset-0 z-20 flex flex-col pt-14">
                     <div className="px-5 pb-3 pt-2">
                       <div className="flex justify-between items-center mb-4">
                         <h2 className="text-2xl font-bold tracking-tight text-[#FFCC00]">
@@ -1206,7 +1339,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto px-4 pb-12 pt-2 gap-3 flex flex-col">
+                    <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden px-4 pb-12 pt-2 gap-3 flex flex-col">
                       {marketTab === "feed"
                         ? marketFeed.map((item) => (
                             <div
@@ -1271,7 +1404,7 @@ export default function App() {
                     </div>
                   </div>
                 ) : phoneApp === "messages" ? (
-                  <div className="bg-black text-white absolute inset-0 z-20 flex flex-col pt-6">
+                  <div className="bg-black text-white absolute inset-0 z-20 flex flex-col pt-14">
                     {messagesAppActiveChat === null ? (
                       <>
                         <div className="px-6 pb-4 border-b border-white/10 flex justify-between items-center">
@@ -1282,7 +1415,7 @@ export default function App() {
                             Edit
                           </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
                           {messagesData.map((chat) => (
                             <div
                               key={chat.id}
@@ -1330,7 +1463,7 @@ export default function App() {
                             }
                           </span>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden p-4 space-y-3">
                           {messagesData
                             .find((c) => c.id === messagesAppActiveChat)
                             ?.history.map((msg, i) => (
@@ -1447,13 +1580,13 @@ export default function App() {
                     </div>
                   </div>
                 ) : phoneApp === "contacts" ? (
-                  <div className="bg-black/90 text-white absolute inset-0 z-20 flex flex-col pt-6 backdrop-blur-md">
+                  <div className="bg-black/90 text-white absolute inset-0 z-20 flex flex-col pt-14 backdrop-blur-md">
                     <div className="px-6 pb-4 border-b border-white/10">
                       <h2 className="text-3xl font-bold tracking-tight">
                         Contacts
                       </h2>
                     </div>
-                    <div className="flex-1 overflow-y-auto pb-8">
+                    <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden pb-8">
                       {[
                         {
                           name: "Mom",
@@ -1550,6 +1683,90 @@ export default function App() {
                           </div>
                         </button>
                       ))}
+                    </div>
+                  </div>
+                ) : phoneApp === "settings" ? (
+                  <div className="bg-[#1C1C1E] text-white absolute inset-0 z-20 flex flex-col">
+                    <div className="px-5 pt-14 pb-3 bg-[#1C1C1E]">
+                      <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+                    </div>
+                    <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden pb-8 space-y-6 px-4">
+                      {/* Profile */}
+                      <div className="bg-[#2C2C2E] rounded-2xl flex items-center gap-4 p-4">
+                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#FF9500] to-[#FF3B30] flex items-center justify-center text-2xl font-bold">P</div>
+                        <div>
+                          <div className="font-semibold text-lg">Pawn Master</div>
+                          <div className="text-xs text-white/50">Apple ID, iCloud, Media & Purchases</div>
+                        </div>
+                        <div className="ml-auto text-white/30">›</div>
+                      </div>
+                      {/* Group 1 */}
+                      <div className="bg-[#2C2C2E] rounded-2xl divide-y divide-white/10">
+                        {[
+                          { icon: "✈️", label: "Airplane Mode", toggle: false },
+                          { icon: "📶", label: "Wi-Fi", value: "PawnShop_5G" },
+                          { icon: "🔵", label: "Bluetooth", value: "On" },
+                          { icon: "📡", label: "Cellular", value: "" },
+                        ].map((row, i) => (
+                          <div key={i} className="flex items-center gap-3 px-4 py-3">
+                            <span className="text-lg w-6 text-center">{row.icon}</span>
+                            <span className="flex-1 text-[15px]">{row.label}</span>
+                            {row.toggle !== undefined && row.toggle === false ? (
+                              <div className="w-12 h-7 rounded-full bg-[#3A3A3C] relative"><div className="absolute left-1 top-1 w-5 h-5 rounded-full bg-white shadow" /></div>
+                            ) : (
+                              <span className="text-white/40 text-sm">{row.value}</span>
+                            )}
+                            <span className="text-white/30 ml-1">›</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Group 2 */}
+                      <div className="bg-[#2C2C2E] rounded-2xl divide-y divide-white/10">
+                        {[
+                          { icon: "🔔", label: "Notifications" },
+                          { icon: "🔊", label: "Sounds & Haptics" },
+                          { icon: "🌙", label: "Focus" },
+                          { icon: "⏱️", label: "Screen Time" },
+                        ].map((row, i) => (
+                          <div key={i} className="flex items-center gap-3 px-4 py-3">
+                            <span className="text-lg w-6 text-center">{row.icon}</span>
+                            <span className="flex-1 text-[15px]">{row.label}</span>
+                            <span className="text-white/30">›</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Group 3 */}
+                      <div className="bg-[#2C2C2E] rounded-2xl divide-y divide-white/10">
+                        {[
+                          { icon: "🌐", label: "General" },
+                          { icon: "♿", label: "Accessibility" },
+                          { icon: "🔒", label: "Privacy & Security" },
+                          { icon: "🔋", label: "Battery", value: "84%" },
+                          { icon: "🖥️", label: "Display & Brightness" },
+                        ].map((row, i) => (
+                          <div key={i} className="flex items-center gap-3 px-4 py-3">
+                            <span className="text-lg w-6 text-center">{row.icon}</span>
+                            <span className="flex-1 text-[15px]">{row.label}</span>
+                            {row.value && <span className="text-white/40 text-sm">{row.value}</span>}
+                            <span className="text-white/30 ml-1">›</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Group 4 */}
+                      <div className="bg-[#2C2C2E] rounded-2xl divide-y divide-white/10">
+                        {[
+                          { icon: "📷", label: "Camera" },
+                          { icon: "🗺️", label: "Maps" },
+                          { icon: "🧭", label: "Compass" },
+                          { icon: "🏥", label: "Health" },
+                        ].map((row, i) => (
+                          <div key={i} className="flex items-center gap-3 px-4 py-3">
+                            <span className="text-lg w-6 text-center">{row.icon}</span>
+                            <span className="flex-1 text-[15px]">{row.label}</span>
+                            <span className="text-white/30">›</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : (
