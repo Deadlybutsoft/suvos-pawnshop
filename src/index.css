@@ -1,0 +1,338 @@
+@import "tailwindcss";
+
+/* ===============================
+   Pawn Game — Arcade Brown/Gold Theme
+   =============================== */
+
+:root {
+    --game-bg-0: #25180f;
+    --game-bg-1: #3b2414;
+    --game-bg-2: #5a3a1f;
+    --game-surface: #3f2a1a;
+    --game-surface-raised: #5a3b22;
+    --game-surface-panel: #6b4728;
+    --game-border: #d5a24d;
+    --game-border-strong: #ffd877;
+    --game-text: #fff2cf;
+    --game-text-muted: #e9cc90;
+    --game-text-dim: #c79f60;
+    --game-accent: #ffcc4d;
+    --game-accent-hover: #ffb300;
+    --game-danger: #ef4444;
+    --game-success: #57d163;
+    --game-shadow: rgba(0, 0, 0, 0.45);
+    --game-deep-shadow: rgba(0, 0, 0, 0.7);
+}
+
+/* Make default UI feel "gamey" */
+html,
+body {
+    color: var(--game-text);
+    background:
+        radial-gradient(
+            circle at 20% 10%,
+            rgba(255, 209, 102, 0.16) 0%,
+            transparent 28%
+        ),
+        radial-gradient(
+            circle at 80% 90%,
+            rgba(255, 179, 0, 0.1) 0%,
+            transparent 24%
+        ),
+        linear-gradient(
+            165deg,
+            var(--game-bg-0) 0%,
+            var(--game-bg-1) 45%,
+            var(--game-bg-2) 100%
+        );
+    font-family:
+        "Arial Black", "Impact", "Haettenschweiler", "Trebuchet MS", sans-serif;
+    letter-spacing: 0.02em;
+}
+
+.game-overlay {
+    background: rgba(15, 8, 3, 0.68);
+    backdrop-filter: blur(6px) saturate(1.05);
+}
+
+.game-menu-shell {
+    position: relative;
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 213, 122, 0.08) 0%,
+            rgba(255, 213, 122, 0) 40%
+        ),
+        linear-gradient(165deg, #4e311c 0%, #3b2415 55%, #2d1a0f 100%);
+    border: 4px solid var(--game-border-strong);
+    border-radius: 1.4rem;
+    box-shadow:
+        0 18px 30px var(--game-shadow),
+        0 0 0 4px rgba(76, 44, 18, 0.9),
+        inset 0 1px 0 rgba(255, 234, 188, 0.25);
+}
+
+.game-menu-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: repeating-linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.02) 0 2px,
+        rgba(0, 0, 0, 0.02) 2px 4px
+    );
+}
+
+.game-menu-sidebar {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 213, 122, 0.09) 0%,
+            rgba(255, 213, 122, 0) 35%
+        ),
+        linear-gradient(180deg, #4b2f1b 0%, #3a2416 100%);
+    border-right: 2px solid rgba(255, 216, 119, 0.55);
+}
+
+.game-menu-header,
+.game-menu-footer {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 208, 120, 0.12) 0%,
+            rgba(255, 208, 120, 0.03) 100%
+        ),
+        rgba(39, 24, 14, 0.8);
+    border-color: rgba(255, 216, 119, 0.45);
+}
+
+.game-label {
+    color: var(--game-accent);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.game-title {
+    color: #fff6de;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-family: "Arial Black", "Impact", sans-serif;
+    letter-spacing: 0.06em;
+    text-shadow:
+        0 3px 0 rgba(95, 56, 20, 0.9),
+        0 6px 10px rgba(0, 0, 0, 0.45);
+}
+
+.game-panel {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 221, 151, 0.08) 0%,
+            rgba(255, 221, 151, 0.02) 100%
+        ),
+        var(--game-surface-panel);
+    border: 2px solid var(--game-border);
+    border-radius: 1rem;
+    box-shadow: inset 0 1px 0 rgba(255, 233, 180, 0.3);
+}
+
+.game-setting-row {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(255, 226, 158, 0.1) 0%,
+            rgba(255, 226, 158, 0) 100%
+        ),
+        #53341f;
+    border: 2px solid rgba(255, 216, 119, 0.4);
+    border-radius: 1rem;
+    padding: 1rem;
+    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow:
+        0 8px 0 #2b1a10,
+        0 12px 18px rgba(0, 0, 0, 0.25);
+}
+
+.game-setting-row:hover {
+    border-color: var(--game-border-strong);
+    transform: translateY(-2px);
+    box-shadow:
+        0 10px 0 #2b1a10,
+        0 16px 22px rgba(0, 0, 0, 0.3);
+}
+
+.game-menu-tab {
+    border-radius: 0.85rem;
+    margin-bottom: 0.5rem;
+    color: var(--game-text-muted);
+    font-weight: 900;
+    text-transform: uppercase;
+    transition: all 150ms ease;
+    padding: 0.75rem 1rem;
+    border: 2px solid transparent;
+}
+
+.game-menu-tab:hover {
+    background: rgba(255, 216, 119, 0.1);
+    color: var(--game-text);
+    border-color: rgba(255, 216, 119, 0.35);
+}
+
+.game-menu-tab-active {
+    background: linear-gradient(180deg, #ffd877 0%, #f1b93f 100%);
+    color: #2c1b0d;
+    border-color: #ffecb7;
+    box-shadow: 0 4px 0 #a36c21;
+}
+
+.game-button,
+.game-button-primary {
+    border-radius: 0.95rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.75rem 1.5rem;
+    transition: all 100ms ease;
+}
+
+.game-button {
+    background: linear-gradient(180deg, #6f4a2c 0%, #55361f 100%);
+    border: 2px solid #f2c46a;
+    color: var(--game-text);
+    box-shadow: 0 5px 0 #2a180c;
+}
+
+.game-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 0 #2a180c;
+}
+
+.game-button:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #2a180c;
+}
+
+.game-button-primary {
+    background: linear-gradient(180deg, #ffd978 0%, #ffb91e 100%);
+    border: 2px solid #fff2cf;
+    color: #2a180c;
+    box-shadow:
+        0 5px 0 #925f1a,
+        0 10px 20px rgba(0, 0, 0, 0.25);
+}
+
+.game-button-primary:hover {
+    filter: brightness(1.04);
+    transform: translateY(-2px);
+    box-shadow:
+        0 7px 0 #925f1a,
+        0 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+.game-button-primary:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #925f1a;
+}
+
+.game-icon-button {
+    background: linear-gradient(180deg, #6a4427 0%, #4c311c 100%);
+    border: 2px solid var(--game-border-strong);
+    border-radius: 0.95rem;
+    color: var(--game-text);
+    box-shadow: 0 4px 0 #2f1c10;
+    transition: all 100ms ease;
+}
+
+.game-icon-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 0 #2f1c10;
+}
+
+.game-icon-button:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #2f1c10;
+}
+
+.game-input,
+.game-select {
+    background: #402717;
+    border: 2px solid var(--game-border);
+    border-radius: 0.75rem;
+    color: var(--game-text);
+    font-weight: 800;
+    padding: 0.75rem;
+    outline: none;
+    box-shadow: inset 0 1px 0 rgba(255, 234, 188, 0.2);
+}
+
+.game-input:focus,
+.game-select:focus {
+    border-color: var(--game-border-strong);
+    box-shadow: 0 0 0 3px rgba(255, 191, 73, 0.22);
+}
+
+.game-value-chip {
+    background: linear-gradient(180deg, #5d3d24 0%, #422a18 100%);
+    border: 2px solid #ffd877;
+    border-radius: 0.6rem;
+    color: #ffe3a1;
+    font-weight: 900;
+    box-shadow: 0 3px 0 #2a180c;
+}
+
+.game-toggle-track {
+    background: #6f4a2b;
+    border: 2px solid var(--game-border);
+    border-radius: 2rem;
+}
+
+.game-toggle-track::after {
+    background: linear-gradient(180deg, #fff2cf 0%, #ffd877 100%);
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+}
+
+.peer:checked + .game-toggle-track {
+    background: linear-gradient(180deg, #87d95f 0%, #3fad3c 100%);
+}
+
+.game-scanlines {
+    position: relative;
+    overflow: hidden;
+}
+
+.game-text-muted {
+    color: var(--game-text-muted);
+}
+
+.game-text-dim {
+    color: var(--game-text-dim);
+}
+
+.game-text-accent {
+    color: var(--game-accent);
+}
+
+.game-shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    border-bottom: 2px dashed rgba(255, 216, 119, 0.35);
+    color: var(--game-text);
+}
+
+.game-shortcut-key {
+    background: linear-gradient(180deg, #6f492b 0%, #52321d 100%);
+    border: 2px solid var(--game-border-strong);
+    border-radius: 0.5rem;
+    color: #fff1cd;
+    padding: 0.25rem 0.75rem;
+    font-weight: 900;
+    box-shadow: 0 2px 0 #2b1a10;
+}
