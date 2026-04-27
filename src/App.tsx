@@ -60,9 +60,26 @@ import OnboardingSetup, {
 export default function App() {
   const [money, setMoney] = useState(1500);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState<
-    "hero" | "setup" | "game"
-  >("hero");
+  const validSteps = ["hero", "setup", "game"] as const;
+  type Step = (typeof validSteps)[number];
+  const hashToStep = (): Step => {
+    const h = window.location.hash.replace(/^#\/?/, "");
+    return (validSteps as readonly string[]).includes(h) ? (h as Step) : "hero";
+  };
+
+  const [onboardingStep, setOnboardingStep] = useState<Step>(hashToStep);
+
+  // Sync state → hash
+  useEffect(() => {
+    window.location.hash = `/${onboardingStep}`;
+  }, [onboardingStep]);
+
+  // Sync hash → state (back/forward navigation)
+  useEffect(() => {
+    const onHashChange = () => setOnboardingStep(hashToStep());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [onboardingConfig, setOnboardingConfig] = useState<OnboardingSetupData>(
     {
       ownerName: "",
