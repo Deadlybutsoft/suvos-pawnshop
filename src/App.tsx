@@ -115,6 +115,7 @@ export default function App() {
     null,
   );
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [doorOpen, setDoorOpen] = useState(false);
 
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -445,6 +446,10 @@ export default function App() {
 
     setActiveNPCs((prev) => [...prev, newNPC]);
 
+    // Open door for NPC entry, close after they walk through
+    setDoorOpen(true);
+    setTimeout(() => setDoorOpen(false), 2500);
+
     // Initial greeting after walk
     setTimeout(() => {
       triggerNPCResponse(instanceId, "Hello?", newNPC);
@@ -591,6 +596,9 @@ export default function App() {
     setActiveNPCs((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isLeaving: true } : n)),
     );
+    // Open door for NPC exit, close after they walk out
+    setDoorOpen(true);
+    setTimeout(() => setDoorOpen(false), 2500);
     setTimeout(() => {
       setActiveNPCs((prev) => prev.filter((n) => n.id !== id));
       if (selectedNpcId === id) setSelectedNpcId(null);
@@ -1854,7 +1862,7 @@ export default function App() {
 
         <Suspense fallback={null}>
           <CameraSetup />
-          <PawnShop />
+          <PawnShop doorOpen={doorOpen} />
           <Lighting />
           {activeNPCs.map((obj) => (
             <NPCCharacter

@@ -1,14 +1,16 @@
-import { Box, Cylinder, Sphere } from "@react-three/drei";
-import { useState } from "react";
+import { Box, Cylinder, Sphere, useTexture } from "@react-three/drei";
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 
-export function PawnShop() {
+export function PawnShop({ doorOpen = false }: { doorOpen?: boolean }) {
   const roomDepth = 8.0;
   const roomWidth = 5.0;
   const roomHeight = 3.5;
 
   return (
     <group>
-      <Room width={roomWidth} height={roomHeight} depth={roomDepth} />
+      <Room width={roomWidth} height={roomHeight} depth={roomDepth} doorOpen={doorOpen} />
       <Counter position={[0, 0, -1.0]} />
       <ShopDecorations
         roomWidth={roomWidth}
@@ -23,12 +25,29 @@ function Room({
   width,
   height,
   depth,
+  doorOpen,
 }: {
   width: number;
   height: number;
   depth: number;
+  doorOpen: boolean;
 }) {
-  const [doorOpen, setDoorOpen] = useState(false);
+  const leftDoorRef = useRef<THREE.Group>(null);
+  const rightDoorRef = useRef<THREE.Group>(null);
+
+  const floorTexture = useTexture("/floor.png");
+  floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
+  floorTexture.repeat.set(4, 6);
+
+  const wallTexture = useTexture("/wall.png");
+  const leftWallTex = useTexture("/left-wall.png");
+  const rightWallTex = useTexture("/right-wall.png");
+  const backWallTex = useTexture("/baclk-wall.png");
+  const frontWallTex = useTexture("/door-wall.png");
+  const ceilingTex = useTexture("/cling.png");
+  const doorLeftTex = useTexture("/door-left.png");
+  const doorRightTex = useTexture("/door-right.png");
+  const hallwayTex = useTexture("/hall.png");
 
   // Door dimensions
   const doorW = 0.8;   // each door panel width
@@ -36,27 +55,36 @@ function Room({
   const gapW = doorW * 2; // total opening = 1.6
   const sideW = (width - gapW) / 2; // remaining wall on each side
 
-  // Hinge positions (inner edge of each door)
-  // Left door hinges at x = -gapW/2 = -0.8, right at x = +0.8
-  // Closed: door lies flat in wall plane (rotation.y = 0)
-  // Open: door swings 85deg inward
   const openAngle = Math.PI * 0.47;
+
+  // Smooth spring animation for door panels
+  useFrame((_, delta) => {
+    const targetL = doorOpen ? openAngle : 0;
+    const targetR = doorOpen ? -openAngle : 0;
+    const speed = 4; // spring-like lerp speed
+    if (leftDoorRef.current) {
+      leftDoorRef.current.rotation.y += (targetL - leftDoorRef.current.rotation.y) * Math.min(speed * delta, 1);
+    }
+    if (rightDoorRef.current) {
+      rightDoorRef.current.rotation.y += (targetR - rightDoorRef.current.rotation.y) * Math.min(speed * delta, 1);
+    }
+  });
 
   return (
     <group>
       {/* Floor */}
       <Box args={[width, 0.1, depth]} position={[0, -0.05, 0]} receiveShadow>
-        <meshStandardMaterial color="#e2e8f0" roughness={0.1} metalness={0.05} />
+        <meshStandardMaterial map={floorTexture} roughness={0.8} />
       </Box>
 
       {/* Ceiling */}
       <Box args={[width, 0.1, depth]} position={[0, height + 0.05, 0]}>
-        <meshStandardMaterial color="#ffffff" roughness={1} />
+        <meshBasicMaterial map={ceilingTex} />
       </Box>
 
       {/* Back wall */}
       <Box args={[width, height, 0.1]} position={[0, height / 2, -depth / 2]} receiveShadow>
-        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+        <meshBasicMaterial map={backWallTex} />
       </Box>
 
       {/* Front wall — left panel */}
@@ -65,7 +93,7 @@ function Room({
         position={[-width / 2 + sideW / 2, height / 2, depth / 2]}
         receiveShadow
       >
-        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+        <meshBasicMaterial map={frontWallTex} />
       </Box>
       {/* Front wall — right panel */}
       <Box
@@ -73,7 +101,7 @@ function Room({
         position={[width / 2 - sideW / 2, height / 2, depth / 2]}
         receiveShadow
       >
-        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+        <meshBasicMaterial map={frontWallTex} />
       </Box>
       {/* Door top beam */}
       <Box
@@ -81,18 +109,23 @@ function Room({
         position={[0, doorH + (height - doorH) / 2, depth / 2]}
         receiveShadow
       >
-        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+        <meshBasicMaterial map={frontWallTex} />
       </Box>
 
+      {/* Hallway backdrop behind door */}
+      <mesh position={[0, doorH / 2, depth / 2 + 0.5]} rotation={[0, 0, 0]}>
+        <planeGeometry args={[gapW, doorH]} />
+        <meshBasicMaterial map={hallwayTex} />
+      </mesh>
+
       {/* Left door — hinged at left edge, opens inward */}
-      <group position={[-gapW / 2, 0, depth / 2]} rotation={[0, doorOpen ? openAngle : 0, 0]}>
+      <group ref={leftDoorRef} position={[-gapW / 2, 0, depth / 2]}>
         <Box
           args={[doorW, doorH, 0.06]}
           position={[doorW / 2, doorH / 2, 0]}
           castShadow
-          onClick={() => setDoorOpen(o => !o)}
         >
-          <meshStandardMaterial color="#5a3a1f" roughness={0.6} />
+          <meshBasicMaterial map={doorRightTex} />
         </Box>
         {/* Handle */}
         <Box args={[0.06, 0.06, 0.12]} position={[doorW - 0.12, doorH / 2, 0.06]}>
@@ -101,14 +134,13 @@ function Room({
       </group>
 
       {/* Right door — hinged at right edge, opens inward */}
-      <group position={[gapW / 2, 0, depth / 2]} rotation={[0, doorOpen ? -openAngle : 0, 0]}>
+      <group ref={rightDoorRef} position={[gapW / 2, 0, depth / 2]}>
         <Box
           args={[doorW, doorH, 0.06]}
           position={[-doorW / 2, doorH / 2, 0]}
           castShadow
-          onClick={() => setDoorOpen(o => !o)}
         >
-          <meshStandardMaterial color="#5a3a1f" roughness={0.6} />
+          <meshBasicMaterial map={doorLeftTex} />
         </Box>
         {/* Handle */}
         <Box args={[0.06, 0.06, 0.12]} position={[-(doorW - 0.12), doorH / 2, 0.06]}>
@@ -118,12 +150,12 @@ function Room({
 
       {/* Left wall */}
       <Box args={[0.1, height, depth]} position={[-width / 2 - 0.05, height / 2, 0]} receiveShadow>
-        <meshStandardMaterial color="#111111" roughness={0.9} />
+        <meshBasicMaterial map={leftWallTex} />
       </Box>
 
       {/* Right wall */}
       <Box args={[0.1, height, depth]} position={[width / 2 + 0.05, height / 2, 0]} receiveShadow>
-        <meshStandardMaterial color="#111111" roughness={0.9} />
+        <meshBasicMaterial map={rightWallTex} />
       </Box>
 
       {/* Skirting board */}
