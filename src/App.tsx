@@ -39,6 +39,7 @@ import {
   ChevronLeft,
   Send,
   Package,
+  Megaphone,
 } from "lucide-react";
 import Groq from "groq-sdk";
 import {
@@ -58,12 +59,13 @@ import { ItemBoxes } from "./components/scene/ItemBoxes";
 import { OnboardingHero } from "./components/onboarding/OnboardingHero";
 import { LoginScreen } from "./components/onboarding/LoginScreen";
 import { LevelSelect } from "./components/onboarding/LevelSelect";
+import { RulesScreen } from "./components/onboarding/RulesScreen";
 import OnboardingSetup, {
   type OnboardingSetupData,
 } from "./components/onboarding/OnboardingSetup";
 
 export default function App() {
-  const [money, setMoney] = useState(1500);
+  const [money, setMoney] = useState(10000);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // User-overridable API keys (localStorage backed, fallback to env)
@@ -71,7 +73,7 @@ export default function App() {
   const [userElevenLabsKey, setUserElevenLabsKey] = useState(() => localStorage.getItem("userElevenLabsKey") || "");
   const groqKey = userGroqKey || process.env.GROQ_API_KEY || "";
   const elevenLabsKey = userElevenLabsKey || process.env.ELEVENLABS_API_KEY || "";
-  const validSteps = ["hero", "login", "levels", "setup", "game"] as const;
+  const validSteps = ["hero", "login", "levels", "rules", "setup", "game"] as const;
   type Step = (typeof validSteps)[number];
   const hashToStep = (): Step => {
     const h = window.location.hash.replace(/^#\/?/, "");
@@ -98,7 +100,7 @@ export default function App() {
       ownerName: "",
       shopName: "Suvo's Pawnshop",
       difficulty: "dealer",
-      startingCash: 1500,
+      startingCash: 10000,
       captionsEnabled: true,
       soundEnabled: true,
     },
@@ -192,35 +194,35 @@ export default function App() {
     {
       id: 1,
       name: "Vintage Rolex",
-      price: 12000,
+      price: 36000,
       seller: "@watchguy",
       condition: "Like New",
     },
     {
       id: 2,
       name: "Charizard 1st Ed",
-      price: 5500,
+      price: 16500,
       seller: "@cardking",
       condition: "PSA 9",
     },
     {
       id: 3,
       name: "Signed Baseball",
-      price: 800,
+      price: 2400,
       seller: "@sportsfan",
       condition: "Authenticated",
     },
     {
       id: 4,
       name: "Old Coin Collection",
-      price: 1500,
+      price: 4500,
       seller: "@numismatic",
       condition: "Various",
     },
   ]);
   const [myMarketItems] = useState([
-    { id: 101, name: "Gold Ring", price: 300, status: "listed" },
-    { id: 102, name: "Antique Vase", price: 750, status: "sold" },
+    { id: 101, name: "Gold Ring", price: 900, status: "listed" },
+    { id: 102, name: "Antique Vase", price: 2250, status: "sold" },
   ]);
 
   // Bank App State
@@ -267,8 +269,6 @@ export default function App() {
         case " ": // Space
           e.preventDefault();
           if (!isPhoneOpen && activeNPCs.length < 2) {
-            // to access spawnNPC safely here, we don't have it... wait we need to define it first, or use a button ref.
-            // Actually it's easier to put the useEffect after spawnNPC is defined or rely on state.
             const btn = document.getElementById("btn-wait-customer");
             if (btn) btn.click();
           }
@@ -333,100 +333,11 @@ export default function App() {
 
   const playClickSound = () => { playSfx("click"); };
 
-  // ElevenLabs Sound Effects — generated once, cached in memory
-  const sfxCacheRef = useRef<Record<string, string>>({});
-  const sfxLoadingRef = useRef<Record<string, boolean>>({});
-
-  const SFX_PROMPTS: Record<string, { text: string; duration: number }> = {
-    click: { text: "Short snappy UI button click, game menu", duration: 0.5 },
-    door: { text: "Old wooden door creaking open slowly in a shop", duration: 1.5 },
-    bell: { text: "Small shop door bell ringing, two bright dings", duration: 1 },
-    deal: { text: "Cash register cha-ching, coins and money", duration: 1 },
-    phone: { text: "Old telephone ringing tone, two rings", duration: 1.5 },
-    error: { text: "Game over buzzer, low harsh alarm sound", duration: 1 },
-    levelup: { text: "Victory fanfare, short triumphant brass jingle, game level complete", duration: 2 },
-  };
-
-  const playSfx = async (type: string) => {
-    // If cached, play immediately
-    if (sfxCacheRef.current[type]) {
-      const a = new Audio(sfxCacheRef.current[type]);
+  const playSfx = (type: string) => {
+    try {
+      const a = new Audio(`/sfx/${type}.mp3`);
       a.volume = 0.5;
       a.play().catch(() => {});
-      return;
-    }
-    if (!elevenLabsKey) { playSfxFallback(type); return; }
-    if (sfxLoadingRef.current[type]) { playSfxFallback(type); return; }
-
-    sfxLoadingRef.current[type] = true;
-    playSfxFallback(type); // instant fallback while ElevenLabs generates
-    try {
-      const prompt = (SFX_PROMPTS as any)[type];
-      if (!prompt) return;
-      const res = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
-        method: "POST",
-        headers: { "xi-api-key": elevenLabsKey, "Content-Type": "application/json" },
-        body: JSON.stringify({ text: prompt.text, duration_seconds: prompt.duration }),
-      });
-      if (!res.ok) throw new Error(`SFX error: ${res.status}`);
-      const blob = await res.blob();
-      sfxCacheRef.current[type] = URL.createObjectURL(blob);
-    } catch (e) {
-      console.warn("ElevenLabs SFX failed:", e);
-    } finally {
-      sfxLoadingRef.current[type] = false;
-    }
-  };
-
-  const playSfxFallback = (type: string) => {
-    try {
-      const AC = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AC) return;
-      const ctx = new AC(); const t = ctx.currentTime;
-      if (type === "click") {
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.type = "sine"; o.frequency.setValueAtTime(800, t); o.frequency.exponentialRampToValueAtTime(300, t + 0.05);
-        g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t + 0.05);
-      } else if (type === "door") {
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.type = "sawtooth"; o.frequency.setValueAtTime(80, t); o.frequency.linearRampToValueAtTime(60, t + 0.4);
-        g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t + 0.4);
-      } else if (type === "deal") {
-        [0, 0.08, 0.16].forEach((d, i) => {
-          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
-          o.frequency.setValueAtTime([1200, 1500, 1800][i], t + d);
-          g.gain.setValueAtTime(0.12, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.12);
-          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.12);
-        });
-      } else if (type === "bell") {
-        [0, 0.15].forEach((d, i) => {
-          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
-          o.frequency.setValueAtTime(i === 0 ? 2200 : 1800, t + d);
-          g.gain.setValueAtTime(0.08, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.3);
-          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.3);
-        });
-      } else if (type === "phone") {
-        [0, 0.2, 0.4, 0.6].forEach((d, i) => {
-          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
-          o.frequency.setValueAtTime(i % 2 === 0 ? 440 : 480, t + d);
-          g.gain.setValueAtTime(0.06, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.15);
-          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.15);
-        });
-      } else if (type === "error") {
-        const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "square";
-        o.frequency.setValueAtTime(150, t);
-        g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t + 0.3);
-      } else if (type === "levelup") {
-        [0, 0.12, 0.24, 0.36].forEach((d, i) => {
-          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
-          o.frequency.setValueAtTime([523, 659, 784, 1047][i], t + d);
-          g.gain.setValueAtTime(0.1, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.2);
-          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.2);
-        });
-      }
     } catch (e) {}
   };
 
@@ -503,7 +414,7 @@ export default function App() {
     const baseValue = spawnedItem.baseValue;
     const minPrice = Math.floor(baseValue * 0.7);
     const maxBudget = Math.floor(baseValue * 1.3);
-    const rentAmount = Math.floor(Math.random() * 1500) + 1000;
+    const rentAmount = Math.floor(Math.random() * 2000) + 2000;
 
     let storyPrompt = "";
     if (npcDefinition.type === "SELLER") {
@@ -567,6 +478,30 @@ export default function App() {
     setTimeout(() => {
       triggerNPCResponse(instanceId, "Hello?", newNPC);
     }, 2000);
+  };
+
+  // Auto-spawn: sellers come every 15-25s, walk-in buyers every 40-60s
+  useEffect(() => {
+    const sellerTimer = setInterval(() => {
+      if (activeNPCs.length < 2) spawnNPC("SELLER");
+    }, 15000 + Math.random() * 10000);
+
+    const walkinTimer = setInterval(() => {
+      if (activeNPCs.length < 2 && Math.random() < 0.4) {
+        spawnNPC(Math.random() < 0.7 ? "BUYER" : "COLLECTOR");
+      }
+    }, 40000 + Math.random() * 20000);
+
+    return () => { clearInterval(sellerTimer); clearInterval(walkinTimer); };
+  }, [activeNPCs.length]);
+
+  // Run Ad — pay $100 to attract a buyer
+  const runAd = () => {
+    if (money < 500) return;
+    if (activeNPCs.length >= 2) return;
+    setMoney(prev => prev - 500);
+    playSfx("click");
+    spawnNPC(Math.random() < 0.6 ? "BUYER" : "COLLECTOR");
   };
 
   const triggerNPCResponse = async (
@@ -872,6 +807,16 @@ export default function App() {
         playerName={playerName}
         onSelectLevel={(level) => {
           setCurrentLevel(level);
+          setOnboardingStep("rules");
+        }}
+      />
+    );
+  }
+
+  if (onboardingStep === "rules") {
+    return (
+      <RulesScreen
+        onAccept={() => {
           setMoney(onboardingConfig.startingCash);
           setCaptionsEnabled(onboardingConfig.captionsEnabled);
           setOnboardingStep("game");
@@ -1366,7 +1311,7 @@ export default function App() {
             </div>
             <div className="space-y-4 p-6">
               <div className="game-shortcut-row">
-                <span>Wait for Customer</span>
+                <span>Wait for Seller</span>
                 <kbd className="game-shortcut-key">Space</kbd>
               </div>
               <div className="game-shortcut-row">
@@ -1503,19 +1448,30 @@ export default function App() {
       <div className="absolute bottom-8 right-8 z-40 pointer-events-auto flex flex-col items-end gap-3">
         <div className="flex gap-3 items-center">
           {!isPhoneOpen && activeNPCs.length < 2 && (
-            <button
-              id="btn-wait-customer"
-              onClick={() => {
-                playClickSound();
-                spawnNPC();
-              }}
-              className="game-icon-button p-4 rounded-3xl shadow-2xl transition-all duration-150 hover:scale-110 active:scale-75 active:opacity-80 flex items-center justify-center group relative text-[#ffd877]"
-            >
-              <Clock size={32} />
-              <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-all game-value-chip text-xs px-2 py-1 rounded whitespace-nowrap">
-                Wait for Customer
-              </span>
-            </button>
+            <>
+              <button
+                id="btn-wait-customer"
+                onClick={() => {
+                  playClickSound();
+                  spawnNPC("SELLER");
+                }}
+                className="game-icon-button p-4 rounded-3xl shadow-2xl transition-all duration-150 hover:scale-110 active:scale-75 active:opacity-80 flex items-center justify-center group relative text-[#ffd877]"
+              >
+                <Clock size={32} />
+                <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-all game-value-chip text-xs px-2 py-1 rounded whitespace-nowrap">
+                  Wait for Seller
+                </span>
+              </button>
+              <button
+                onClick={runAd}
+                className={`game-icon-button p-4 rounded-3xl shadow-2xl transition-all duration-150 hover:scale-110 active:scale-75 active:opacity-80 flex items-center justify-center group relative ${money >= 500 ? "text-[#57d163]" : "text-[#c79f60] opacity-50"}`}
+              >
+                <Megaphone size={32} />
+                <span className="absolute -top-10 scale-0 group-hover:scale-100 transition-all game-value-chip text-xs px-2 py-1 rounded whitespace-nowrap">
+                  Run Ad · $500
+                </span>
+              </button>
+            </>
           )}
           <button
             onClick={() => {
@@ -2051,9 +2007,9 @@ export default function App() {
                         { name: "Mike", desc: "Friend", expertRole: "", fee: 0, color: "bg-yellow-500/20 text-yellow-500" },
                         { name: "Sarah", desc: "Friend", expertRole: "", fee: 0, color: "bg-purple-500/20 text-purple-400" },
                         { name: "David", desc: "Friend", expertRole: "", fee: 0, color: "bg-orange-500/20 text-orange-400" },
-                        { name: "Dr. Harrison", desc: "Historian · $100/call", expertRole: "historian specializing in European and Asian antiquities", fee: 100, color: "bg-gray-500/20 text-gray-400" },
-                        { name: "Prof. Miller", desc: "Appraiser · $150/call", expertRole: "antique appraiser with 30 years of experience in authentication", fee: 150, color: "bg-indigo-500/20 text-indigo-400" },
-                        { name: "Mr. Vance", desc: "Museum Exec · $200/call", expertRole: "museum executive and art authentication specialist", fee: 200, color: "bg-emerald-500/20 text-emerald-400" },
+                        { name: "Dr. Harrison", desc: "Historian · $300/call", expertRole: "historian specializing in European and Asian antiquities", fee: 300, color: "bg-gray-500/20 text-gray-400" },
+                        { name: "Prof. Miller", desc: "Appraiser · $500/call", expertRole: "antique appraiser with 30 years of experience in authentication", fee: 500, color: "bg-indigo-500/20 text-indigo-400" },
+                        { name: "Mr. Vance", desc: "Museum Exec · $750/call", expertRole: "museum executive and art authentication specialist", fee: 750, color: "bg-emerald-500/20 text-emerald-400" },
                       ].map((contact, idx) => (
                         <button
                           key={idx}

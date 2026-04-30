@@ -22,16 +22,16 @@ export function LoginScreen({ onLogin }: Props) {
       <div className="absolute inset-0 bg-black/60" />
 
       <div className="relative z-10 flex flex-col items-center justify-center w-full px-6 max-w-2xl text-center">
-        {/* Big dramatic title */}
+        {/* Big dramatic game title */}
         <h1
-          className="uppercase leading-tight mb-4 select-none"
+          className="uppercase leading-none mb-3 select-none"
           style={{
-            fontFamily: "'Impact', 'Arial Black', 'Haettenschweiler', sans-serif",
-            fontSize: "clamp(2.2rem, 6vw, 4.5rem)",
+            fontFamily: "'Bungee Shade', 'Impact', cursive",
+            fontSize: "clamp(1.8rem, 5vw, 3.5rem)",
             color: "var(--game-accent)",
-            textShadow: "0 0 30px rgba(255,204,77,0.4), 0 4px 12px rgba(0,0,0,0.8)",
-            letterSpacing: "0.06em",
-            lineHeight: 1.1,
+            textShadow: "0 0 40px rgba(255,204,77,0.5), 0 6px 20px rgba(0,0,0,0.9), 0 0 80px rgba(255,179,0,0.2)",
+            letterSpacing: "0.04em",
+            lineHeight: 1.15,
           }}
         >
           Are You Ready to Run<br />Suvo's Pawn Shop?
@@ -40,8 +40,8 @@ export function LoginScreen({ onLogin }: Props) {
         <p
           className="uppercase tracking-[0.3em] mb-10 select-none"
           style={{
-            fontFamily: "'Arial Black', 'Impact', sans-serif",
-            fontSize: "clamp(0.7rem, 1.8vw, 1rem)",
+            fontFamily: "'Bungee', 'Arial Black', sans-serif",
+            fontSize: "clamp(0.6rem, 1.5vw, 0.85rem)",
             color: "var(--game-text-muted)",
             textShadow: "0 2px 8px rgba(0,0,0,0.7)",
           }}
@@ -49,12 +49,12 @@ export function LoginScreen({ onLogin }: Props) {
           Enter your name and prove yourself
         </p>
 
-        {/* Name input — big and bold */}
+        {/* Name input */}
         <input
-          className="game-input w-full max-w-md text-center text-2xl py-4 mb-4 uppercase tracking-wider"
+          className="game-input w-full max-w-md text-center py-4 mb-4 uppercase tracking-wider"
           style={{
-            fontFamily: "'Impact', 'Arial Black', sans-serif",
-            fontSize: "clamp(1.2rem, 3vw, 1.8rem)",
+            fontFamily: "'Bungee', 'Arial Black', sans-serif",
+            fontSize: "clamp(1rem, 2.5vw, 1.4rem)",
             border: "3px solid var(--game-border-strong)",
             background: "var(--game-surface)",
             color: "var(--game-text)",
@@ -71,17 +71,17 @@ export function LoginScreen({ onLogin }: Props) {
         {error && (
           <p
             className="uppercase tracking-wider text-lg font-black mb-4"
-            style={{ color: "var(--game-danger)", textShadow: "0 0 10px rgba(239,68,68,0.5)" }}
+            style={{ fontFamily: "'Bungee', sans-serif", color: "var(--game-danger)", textShadow: "0 0 10px rgba(239,68,68,0.5)" }}
           >
             {error}
           </p>
         )}
 
         <button
-          className="game-button-primary uppercase tracking-[0.2em] font-black px-12 py-4"
+          className="game-button-primary uppercase tracking-[0.15em] px-12 py-4"
           style={{
-            fontFamily: "'Impact', 'Arial Black', sans-serif",
-            fontSize: "clamp(1.2rem, 3vw, 1.6rem)",
+            fontFamily: "'Bungee', 'Arial Black', sans-serif",
+            fontSize: "clamp(1.1rem, 2.5vw, 1.5rem)",
           }}
           onClick={handleSubmit}
         >

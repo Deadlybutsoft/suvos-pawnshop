@@ -23,16 +23,15 @@ export function LevelSelect({ playerName, onSelectLevel }: Props) {
       <div className="absolute inset-0 bg-black/60" />
 
       <div className="relative z-10 flex flex-col items-center justify-center w-full px-6 max-w-3xl text-center">
-        {/* Big title */}
         <h1
-          className="uppercase leading-tight mb-3 select-none"
+          className="uppercase leading-none mb-3 select-none"
           style={{
-            fontFamily: "'Impact', 'Arial Black', 'Haettenschweiler', sans-serif",
-            fontSize: "clamp(2rem, 5.5vw, 4rem)",
+            fontFamily: "'Bungee Shade', 'Impact', cursive",
+            fontSize: "clamp(1.8rem, 5vw, 3.5rem)",
             color: "var(--game-accent)",
-            textShadow: "0 0 30px rgba(255,204,77,0.4), 0 4px 12px rgba(0,0,0,0.8)",
-            letterSpacing: "0.06em",
-            lineHeight: 1.1,
+            textShadow: "0 0 40px rgba(255,204,77,0.5), 0 6px 20px rgba(0,0,0,0.9), 0 0 80px rgba(255,179,0,0.2)",
+            letterSpacing: "0.04em",
+            lineHeight: 1.15,
           }}
         >
           Choose Your Challenge
@@ -41,8 +40,8 @@ export function LevelSelect({ playerName, onSelectLevel }: Props) {
         <p
           className="uppercase tracking-[0.3em] mb-12 select-none"
           style={{
-            fontFamily: "'Arial Black', 'Impact', sans-serif",
-            fontSize: "clamp(0.65rem, 1.6vw, 0.95rem)",
+            fontFamily: "'Bungee', 'Arial Black', sans-serif",
+            fontSize: "clamp(0.55rem, 1.4vw, 0.8rem)",
             color: "var(--game-text-muted)",
             textShadow: "0 2px 8px rgba(0,0,0,0.7)",
           }}
@@ -65,7 +64,7 @@ export function LevelSelect({ playerName, onSelectLevel }: Props) {
                   style={{
                     width: "clamp(64px, 14vw, 96px)",
                     height: "clamp(64px, 14vw, 96px)",
-                    fontFamily: "'Impact', 'Arial Black', sans-serif",
+                    fontFamily: "'Bungee', 'Arial Black', sans-serif",
                     fontSize: "clamp(1.5rem, 4vw, 2.5rem)",
                     cursor: unlocked ? "pointer" : "not-allowed",
                     ...(isCurrent
@@ -93,22 +92,18 @@ export function LevelSelect({ playerName, onSelectLevel }: Props) {
                   }}
                 >
                   {unlocked ? l.num : "🔒"}
-                  {/* Glow ring on current */}
                   {isCurrent && (
                     <span
                       className="absolute inset-0 rounded-full animate-ping"
-                      style={{
-                        border: "2px solid var(--game-accent)",
-                        opacity: 0.3,
-                      }}
+                      style={{ border: "2px solid var(--game-accent)", opacity: 0.3 }}
                     />
                   )}
                 </button>
                 <span
                   className="uppercase tracking-wider select-none"
                   style={{
-                    fontFamily: "'Arial Black', 'Impact', sans-serif",
-                    fontSize: "clamp(0.5rem, 1.3vw, 0.7rem)",
+                    fontFamily: "'Bungee', 'Arial Black', sans-serif",
+                    fontSize: "clamp(0.45rem, 1.1vw, 0.6rem)",
                     color: isCurrent ? "var(--game-accent)" : unlocked ? "var(--game-text-muted)" : "var(--game-text-dim)",
                     opacity: unlocked ? 1 : 0.35,
                   }}
@@ -122,10 +117,10 @@ export function LevelSelect({ playerName, onSelectLevel }: Props) {
 
         {/* Start button */}
         <button
-          className="game-button-primary uppercase tracking-[0.2em] font-black px-14 py-5"
+          className="game-button-primary uppercase tracking-[0.15em] px-14 py-5"
           style={{
-            fontFamily: "'Impact', 'Arial Black', sans-serif",
-            fontSize: "clamp(1.2rem, 3vw, 1.6rem)",
+            fontFamily: "'Bungee', 'Arial Black', sans-serif",
+            fontSize: "clamp(1.1rem, 2.5vw, 1.5rem)",
             boxShadow: "0 0 20px rgba(255,204,77,0.3), 0 6px 20px rgba(0,0,0,0.5)",
           }}
           onClick={() => onSelectLevel(unlockedLevel)}

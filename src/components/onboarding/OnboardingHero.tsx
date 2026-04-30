@@ -35,11 +35,11 @@ export function OnboardingHero({ onStart }: OnboardingHeroProps) {
         <h1
           className="uppercase select-none mb-4"
           style={{
-            fontFamily: "'Impact', 'Arial Black', 'Haettenschweiler', sans-serif",
-            fontSize: "clamp(2.5rem, 7vw, 5rem)",
+            fontFamily: "'Bungee Shade', 'Impact', cursive",
+            fontSize: "clamp(2rem, 6vw, 4.5rem)",
             color: "var(--game-accent)",
-            textShadow: "0 0 40px rgba(255,204,77,0.4), 0 4px 16px rgba(0,0,0,0.9)",
-            letterSpacing: "0.08em",
+            textShadow: "0 0 40px rgba(255,204,77,0.5), 0 6px 20px rgba(0,0,0,0.9), 0 0 80px rgba(255,179,0,0.2)",
+            letterSpacing: "0.04em",
             lineHeight: 1.05,
           }}
         >
@@ -48,10 +48,10 @@ export function OnboardingHero({ onStart }: OnboardingHeroProps) {
 
         {show && (
           <p
-            className="uppercase tracking-[0.4em] select-none animate-pulse"
+            className="uppercase tracking-[0.3em] select-none animate-pulse"
             style={{
-              fontFamily: "'Arial Black', 'Impact', sans-serif",
-              fontSize: "clamp(0.7rem, 2vw, 1.1rem)",
+              fontFamily: "'Bungee', 'Arial Black', sans-serif",
+              fontSize: "clamp(0.6rem, 1.5vw, 0.9rem)",
               color: "var(--game-text-muted)",
               textShadow: "0 2px 10px rgba(0,0,0,0.8)",
             }}

@@ -16,7 +16,7 @@ Build interfaces that feel like a **playable game HUD/menu**, not a plain dashbo
 Core characteristics:
 
 1. **Brown + Yellow/Gold palette** (warm, tactile, pawn-shop vibe)
-2. **Bulky, high-weight typography**
+2. **Bulky, high-weight typography** (Bungee / Bungee Shade for titles)
 3. **Strong gradients and layered surfaces**
 4. **Chunky borders and depth shadows**
 5. **Arcade-like interactions** (hover lift, pressed state, tactile feedback)
@@ -52,11 +52,19 @@ If this palette evolves, update both `src/index.css` and this file together.
 
 ## Typography Rules
 
-- Prefer heavy display feel:
-  - `"Arial Black"`, `"Impact"`, `"Haettenschweiler"`, `"Trebuchet MS"`, sans-serif fallback stack
-- Use uppercase for labels/actions where appropriate.
-- Use wider letter-spacing for UI labels and menu headings.
-- Keep body text readable; avoid thin/light fonts in key UI actions.
+### Fonts (loaded via Google Fonts in `index.html`)
+
+- **Bungee Shade** — primary display font for big titles (hero, login, level select, rules)
+- **Bungee** — secondary display font for subtitles, buttons, labels, level names, input text
+- **Fallback stack:** `"Impact"`, `"Arial Black"`, `"Haettenschweiler"`, `"Trebuchet MS"`, sans-serif
+
+### Usage
+
+- Use `Bungee Shade` for page titles and hero headings
+- Use `Bungee` for all UI labels, buttons, and body text in onboarding screens
+- Use uppercase for labels/actions where appropriate
+- Use wider letter-spacing for UI labels and menu headings
+- Keep body text readable; avoid thin/light fonts in key UI actions
 
 ---
 
@@ -109,7 +117,7 @@ If a new reusable pattern is needed, add a new `game-*` class in `src/index.css`
   - Preserve chunky shadow behavior
 - Keep animation durations short (`100ms–200ms`) for responsive game feel.
 - Prefer subtle scale/translate over dramatic animations.
-- Avoid floaty “SaaS-style” motion that conflicts with tactile design.
+- Avoid floaty "SaaS-style" motion that conflicts with tactile design.
 
 ---
 
@@ -137,16 +145,16 @@ When adding UI in `src/App.tsx` or new components:
 
 ---
 
-## Do / Don’t
+## Do / Don't
 
 ### Do
 
 - Keep everything in the warm brown/gold identity.
 - Use gradients and shadows for depth.
-- Keep typography bold and game-like.
+- Keep typography bold and game-like (Bungee / Bungee Shade).
 - Reuse the design primitives already defined.
 
-### Don’t
+### Don't
 
 - Introduce cool/neon palette themes that conflict with this identity.
 - Mix in flat, minimal web-app cards/buttons without depth.
@@ -161,7 +169,7 @@ When adding UI in `src/App.tsx` or new components:
 - [ ] New styles rely on `--game-*` tokens
 - [ ] Primary/secondary actions follow button hierarchy
 - [ ] New overlays/modals match shell/backdrop system
-- [ ] Typography remains bulky and legible
+- [ ] Typography uses Bungee / Bungee Shade for display text
 - [ ] No random off-theme colors introduced
 - [ ] Mobile and desktop readability checked
 
@@ -215,9 +223,11 @@ If you intentionally change direction, update this file in the same change set w
 - **Frontend:** React + TypeScript + Vite + Tailwind CSS
 - **3D Scene:** react-three-fiber + drei (Three.js)
 - **AI Dialogue:** Groq SDK (Llama 3.1 8B) — stateless chat completions with manual message history
-- **Voice TTS:** ElevenLabs REST API (`/v1/text-to-speech/{voice_id}`) — NPC voices
+- **Voice TTS:** ElevenLabs REST API (`/v1/text-to-speech/{voice_id}`) — NPC voices (unique per personality)
 - **Voice STT:** ElevenLabs REST API (`/v1/speech-to-text`) — player mic via MediaRecorder
+- **Sound Effects:** ElevenLabs-generated MP3s (pre-baked in `public/sfx/`)
 - **Images:** Wikimedia Commons thumbnail URLs, cached in memory
+- **Fonts:** Google Fonts — Bungee Shade + Bungee
 
 ### API Keys
 
@@ -226,13 +236,34 @@ If you intentionally change direction, update this file in the same change set w
 - Priority: `localStorage` user key → `.env.local` default key
 - Env vars: `GROQ_API_KEY`, `ELEVENLABS_API_KEY`
 
+### Game Flow
+
+1. **Hero Screen** — "SUVO'S PAWNSHOP" title, press any key / tap to start
+2. **Login Screen** — enter character name (no password, stored in localStorage)
+3. **Level Select** — 5 levels (1 unlocked by default), glowing current level circle
+4. **Rules Screen** — 7 game rules, must check agreement box to proceed
+5. **Game** — 3D pawn shop, NPCs, haggling, phone, inventory
+
 ### Core Game Loop
 
-1. NPCs spawn through the door (sellers, buyers, collectors)
-2. Player negotiates via text input or voice (ElevenLabs STT)
-3. NPC responds via Groq LLM + ElevenLabs TTS
-4. Deals trigger `[ACTION: DEAL $X]` — updates money, inventory, transactions
-5. NPCs leave via `[ACTION: LEAVE]` or after a deal
+1. **Sellers arrive automatically** (every 15-25s) or via "Wait for Seller" button
+2. **Buyers arrive** via "Run Ad" ($500) or walk in randomly (every 40-60s)
+3. Player negotiates via text input or voice (ElevenLabs STT)
+4. NPC responds via Groq LLM + ElevenLabs TTS (unique voice per NPC)
+5. Deals trigger `[ACTION: DEAL $X]` — updates money, inventory, transactions
+6. NPCs leave via `[ACTION: LEAVE]` or after a deal
+
+### Economy
+
+| Item | Cost |
+|------|------|
+| Starting cash | $10,000 |
+| Item base values | $600–$15,000 |
+| Run Ad (attract buyer) | $500 |
+| Expert: Dr. Harrison | $300/call |
+| Expert: Prof. Miller | $500/call |
+| Expert: Mr. Vance | $750/call |
+| Rent (landlord) | $2,000–$4,000 |
 
 ### Item System (`src/lib/items.ts`)
 
@@ -255,22 +286,72 @@ If you intentionally change direction, update this file in the same change set w
 
 ### Expert Calling System
 
-- 3 expert contacts on the iPhone: Dr. Harrison ($100), Prof. Miller ($150), Mr. Vance ($200)
+- 3 expert contacts on the iPhone: Dr. Harrison ($300), Prof. Miller ($500), Mr. Vance ($750)
 - Call flow: ring (2s) → 50/50 pickup → fee deducted → AI conversation about current item
 - Expert knows the truth (fake/stolen/authentic) and hints accordingly
 - Full chat UI with text input + ElevenLabs TTS for expert voice
 - Located in iPhone → Contacts app
+
+### NPC Voice System
+
+Each NPC personality has a unique ElevenLabs voice ID:
+
+| NPC | Voice |
+|-----|-------|
+| s1 — Angry male seller | George |
+| s2 — Forgetful female seller | Charlotte |
+| s3 — Funny male seller | Charlie |
+| s4 — Paranoid female seller | Alice |
+| s5 — Snobby male seller | Callum |
+| s6 — Romantic female seller | Jessica |
+| s7 — Confused male seller | Daniel |
+| Buyers/Collectors | James, Lily, Liam, etc. |
+| Dr. Harrison | James |
+| Prof. Miller | Daniel |
+| Mr. Vance | Callum |
+
+### NPC Character System (`src/components/scene/NPCCharacter.tsx`)
+
+3D box-style characters with randomized traits:
+
+- **10 skin tones**, **15 shirt colors**, **12 pant colors**, **13 hair colors**
+- **8 hair styles:** flat, tall, mohawk, side-part, long, bald, afro, buzz
+- **Accessories (independent chances):** glasses (25%), hats — cap/beanie/tophat (25%), chains (20%), scarves (15%), headbands (10%), earrings (40% female / 15% male), jackets (30%), beards — full/goatee/stubble (35% male)
+- **Animations:** mouth lip-sync when talking, arm gestures while talking, walk arm swing, idle body sway, head micro-movement, eye blinking (irregular timing)
+- **Body variation:** randomized width, height, head scale
+- **Details:** eye whites + colored pupils, eyebrows, ears, shoes, hands
+
+### Sound Effects (`public/sfx/`)
+
+Pre-generated via ElevenLabs Sound Effects API, served as static MP3 files (zero API calls during gameplay):
+
+| File | Trigger |
+|------|---------|
+| `click.mp3` | Button presses |
+| `door.mp3` | NPC enters / leaves |
+| `bell.mp3` | NPC enters (after door) |
+| `deal.mp3` | Deal is made |
+| `phone.mp3` | Expert call starts |
+| `error.mp3` | Game over (busted) |
+| `levelup.mp3` | Level complete |
 
 ### Starting Inventory
 
 - Player begins with 5 random authentic items (generated via `getStartingInventory()`)
 - Ensures buyers have something to purchase from the start
 
+### Level System
+
+- 5 levels: Rookie Dealer → Street Hustler → Sharp Eye → Master Dealer → Pawn King
+- Unlock progress saved per player in `localStorage` (`pawn-level-{name}`)
+- Level complete screen with stats + "Next Level" button
+- Victory fanfare sound on completion
+
 ### Game Over Screen
 
 - Triggered by selling fakes, selling stolen goods, or buying stolen goods (if caught)
 - Shows: reason, money earned, items traded, inventory value
-- "Try Again" returns to hero/onboarding screen
+- "Try Again" returns to level select screen
 
 ### Key Files
 
@@ -279,22 +360,30 @@ If you intentionally change direction, update this file in the same change set w
 | `src/App.tsx` | Main game component — all UI, state, game logic |
 | `src/lib/items.ts` | Item database, authenticity system, spawn logic |
 | `src/lib/npcPrompts.ts` | NPC personality definitions and system prompts |
-| `src/components/scene/PawnShop.tsx` | 3D pawn shop scene (room, doors, furniture) |
+| `src/components/scene/PawnShop.tsx` | 3D pawn shop scene (room, doors, counter with table texture) |
 | `src/components/scene/NPCCharacter.tsx` | 3D NPC character rendering and animation |
+| `src/components/scene/ItemBoxes.tsx` | 3D item boxes on counter (hover glow, click to inspect) |
+| `src/components/onboarding/OnboardingHero.tsx` | Hero/splash screen (tap to start) |
+| `src/components/onboarding/LoginScreen.tsx` | Login screen (name entry, no password) |
+| `src/components/onboarding/LevelSelect.tsx` | Level select (5 levels, circle UI) |
+| `src/components/onboarding/RulesScreen.tsx` | Rules screen (7 rules, agreement checkbox) |
+| `src/components/onboarding/OnboardingSetup.tsx` | Setup screen (currently bypassed) |
 | `src/index.css` | All `game-*` CSS classes and `--game-*` tokens |
+| `index.html` | Entry HTML, Google Fonts loading |
 | `vite.config.ts` | Build config, env var injection |
 | `.env.local` | API keys (GROQ_API_KEY, ELEVENLABS_API_KEY) |
+| `public/sfx/` | Pre-generated ElevenLabs sound effect MP3s |
 
 ### NPC Types
 
 | Type | Behavior |
 |------|----------|
-| `SELLER` | Brings items to sell — player haggles to buy low |
-| `BUYER` | Wants to buy from inventory — player haggles to sell high |
-| `COLLECTOR` | High-end buyer, willing to pay more for rare items |
-| `EXPERT` | Appraiser (currently spawned via walk-in, experts also callable via phone) |
+| `SELLER` | Brings items to sell — auto-spawns every 15-25s, or via "Wait for Seller" button |
+| `BUYER` | Wants to buy from inventory — via "Run Ad" ($500) or random walk-in |
+| `COLLECTOR` | High-end buyer, willing to pay more — via "Run Ad" or random walk-in |
+| `EXPERT` | Appraiser (spawned via walk-in, also callable via phone) |
 | `DELIVERY` | Drops off packages |
-| `LANDLORD` | Demands rent payment |
+| `LANDLORD` | Demands rent payment ($2,000–$4,000) |
 
 ### Z-Index Layering
 
@@ -306,12 +395,28 @@ All HUD/UI elements use Tailwind z-classes above it:
 | Canvas (3D) | `z-0` | Three.js scene |
 | HUD top bar | `z-10` | Money display, settings button, time |
 | NPC subtitles | `z-10` | Chat bubbles, reply/mic/dismiss buttons |
-| Bottom buttons | `z-40` | Inventory, Phone, Wait for Customer |
-| Phone UI | `z-30` | iPhone overlay + apps |
-| Modals | `z-50` | Inventory modal, shortcuts modal |
-| Call overlay | `z-[90]` | Expert phone call UI |
-| Game over | `z-[100]` | BUSTED / jail screen |
 | Settings | `z-20` | Pause/settings menu |
+| Phone UI | `z-30` | iPhone overlay + apps |
+| Bottom buttons | `z-40` | Inventory, Phone, Wait for Seller, Run Ad |
+| Modals | `z-50` | Inventory modal, shortcuts modal, item inspection |
+| Call overlay | `z-[90]` | Expert phone call UI |
+| Level complete | `z-[100]` | Victory screen |
+| Game over | `z-[100]` | BUSTED / jail screen |
+
+### Static Assets (`public/`)
+
+| File | Purpose |
+|------|---------|
+| `pawnshop-hero.png` | Hero screen background |
+| `login-bg.png` | Login screen background |
+| `level-bg.png` | Level select background |
+| `rules-bg.png` | Rules screen background |
+| `table.png` | Counter/table texture |
+| `floor.png` | Floor texture |
+| `wall.png`, `left-wall.png`, `right-wall.png`, `baclk-wall.png` | Wall textures |
+| `door-wall.png`, `door-left.png`, `door-right.png` | Door textures |
+| `cling.png` | Ceiling texture |
+| `sfx/*.mp3` | Sound effects (7 files) |
 
 ### Known Issues & Notes
 
@@ -321,3 +426,5 @@ All HUD/UI elements use Tailwind z-classes above it:
 - ElevenLabs TTS falls back to browser `speechSynthesis` if the API call fails
 - STT uses MediaRecorder (click to start, click to stop) — not continuous listening
 - Expert call messages are stateless per call (no persistence between calls)
+- The OnboardingSetup screen exists but is currently bypassed in the flow
+- GitHub repo has moved to `https://github.com/Deadlybutsoft/suvos-pawnshop.git`
