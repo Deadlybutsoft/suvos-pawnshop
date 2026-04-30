@@ -56,6 +56,8 @@ import { Lighting } from "./components/scene/Lighting";
 import { PawnShop } from "./components/scene/PawnShop";
 import { ItemBoxes } from "./components/scene/ItemBoxes";
 import { OnboardingHero } from "./components/onboarding/OnboardingHero";
+import { LoginScreen } from "./components/onboarding/LoginScreen";
+import { LevelSelect } from "./components/onboarding/LevelSelect";
 import OnboardingSetup, {
   type OnboardingSetupData,
 } from "./components/onboarding/OnboardingSetup";
@@ -69,7 +71,7 @@ export default function App() {
   const [userElevenLabsKey, setUserElevenLabsKey] = useState(() => localStorage.getItem("userElevenLabsKey") || "");
   const groqKey = userGroqKey || process.env.GROQ_API_KEY || "";
   const elevenLabsKey = userElevenLabsKey || process.env.ELEVENLABS_API_KEY || "";
-  const validSteps = ["hero", "setup", "game"] as const;
+  const validSteps = ["hero", "login", "levels", "setup", "game"] as const;
   type Step = (typeof validSteps)[number];
   const hashToStep = (): Step => {
     const h = window.location.hash.replace(/^#\/?/, "");
@@ -77,6 +79,8 @@ export default function App() {
   };
 
   const [onboardingStep, setOnboardingStep] = useState<Step>(hashToStep);
+  const [playerName, setPlayerName] = useState("");
+  const [currentLevel, setCurrentLevel] = useState(1);
 
   // Sync state → hash
   useEffect(() => {
@@ -733,9 +737,32 @@ export default function App() {
     return (
       <OnboardingHero
         onStart={() => {
-          setOnboardingStep("game");
+          setOnboardingStep("login");
+        }}
+      />
+    );
+  }
+
+  if (onboardingStep === "login") {
+    return (
+      <LoginScreen
+        onLogin={(name) => {
+          setPlayerName(name);
+          setOnboardingStep("levels");
+        }}
+      />
+    );
+  }
+
+  if (onboardingStep === "levels") {
+    return (
+      <LevelSelect
+        playerName={playerName}
+        onSelectLevel={(level) => {
+          setCurrentLevel(level);
           setMoney(onboardingConfig.startingCash);
           setCaptionsEnabled(onboardingConfig.captionsEnabled);
+          setOnboardingStep("game");
         }}
       />
     );

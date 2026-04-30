@@ -182,40 +182,39 @@ function Room({
 }
 
 function Counter({ position }: { position: [number, number, number] }) {
+  const tableTex = useTexture("/table.png");
+
   return (
     <group position={position}>
-      {/* Fun bright counter base — Sky Blue */}
+      {/* Counter base */}
       <Box
         args={[4.0, 1.1, 1]}
         position={[0, 0.55, 0]}
         castShadow
         receiveShadow
       >
-        <meshStandardMaterial color="#0ea5e9" roughness={0.4} />
+        <meshStandardMaterial map={tableTex} roughness={0.6} />
       </Box>
 
-      {/* Colorful side panels */}
+      {/* Front panels */}
       {Array.from({ length: 6 }).map((_, i) => (
         <Box
           key={`panel-${i}`}
           args={[0.5, 0.9, 0.05]}
           position={[-1.25 + i * 0.5, 0.55, 0.52]}
         >
-          <meshStandardMaterial
-            color={i % 2 === 0 ? "#7dd3fc" : "#38bdf8"}
-            roughness={0.5}
-          />
+          <meshStandardMaterial map={tableTex} roughness={0.7} />
         </Box>
       ))}
 
-      {/* Counter top — Bright clean yellow */}
+      {/* Counter top */}
       <Box
         args={[4.2, 0.08, 1.1]}
         position={[0, 1.14, 0]}
         receiveShadow
         castShadow
       >
-        <meshStandardMaterial color="#fbbf24" roughness={0.1} />
+        <meshStandardMaterial map={tableTex} roughness={0.4} />
       </Box>
 
       {/* Fun glass display with bright contents */}
