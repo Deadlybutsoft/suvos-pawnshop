@@ -1,60 +1,67 @@
 export function Lighting() {
   return (
     <>
-      {/* High intensity ambient light to ensure a bright, cheerful baseline */}
-      <ambientLight intensity={5.0} color="#ffffff" />
+      {/* Warm ambient base */}
+      <ambientLight intensity={1.8} color="#ffe8c8" />
 
-      {/* Main white overhead light to contrast with the dark walls */}
+      {/* Main overhead — warm pendant light feel */}
       <pointLight
-        position={[0, 3.5, 0]}
-        intensity={140}
-        distance={20}
-        color="#ffffff"
+        position={[0, 3.0, -0.5]}
+        intensity={35}
+        distance={18}
+        color="#ffe0b0"
         castShadow
         shadow-mapSize={[2048, 2048]}
       />
 
-      {/* Fill light for the front entrance area */}
+      {/* Secondary overhead — spreads light evenly */}
       <pointLight
-        position={[0, 2.5, 3.5]}
-        intensity={90}
-        distance={15}
-        color="#f0f9ff"
+        position={[0, 3.0, 2.0]}
+        intensity={20}
+        distance={16}
+        color="#fff2d6"
       />
 
-      {/* Focused spotlight on the counter area for clear interactions */}
+      {/* Counter spotlight — highlights the action area */}
       <pointLight
-        position={[0, 2.8, -1.5]}
-        intensity={120}
-        distance={12}
-        color="#ffffff"
+        position={[0, 2.6, -1.2]}
+        intensity={18}
+        distance={10}
+        color="#ffecc0"
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
 
-      {/* Fun colorful bounce lights to add pop to the bright theme */}
-      {/* Sky blue accent bounce from the left */}
+      {/* Warm left wall wash */}
       <pointLight
-        position={[-3, 2, 1]}
-        intensity={70}
+        position={[-2.8, 2, 0]}
+        intensity={10}
         distance={10}
-        color="#38bdf8"
+        color="#ffd9a0"
       />
 
-      {/* Pink accent bounce from the right */}
+      {/* Warm right wall wash */}
       <pointLight
-        position={[3, 2, 1]}
-        intensity={70}
+        position={[2.8, 2, 0]}
+        intensity={10}
         distance={10}
-        color="#f472b6"
+        color="#ffd9a0"
       />
 
-      {/* Back wall pop of light */}
+      {/* Back wall accent — warm golden */}
       <pointLight
-        position={[0, 2.5, -3.8]}
-        intensity={60}
+        position={[0, 2.2, -3.8]}
+        intensity={12}
         distance={8}
-        color="#fbbf24"
+        color="#ffcc70"
+      />
+
+      {/* Door entrance fill — slight cool contrast */}
+      <pointLight
+        position={[0, 2.0, 3.8]}
+        intensity={8}
+        distance={10}
+        color="#e8eeff"
       />
     </>
   );

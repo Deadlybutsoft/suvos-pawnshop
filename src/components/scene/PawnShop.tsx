@@ -1,18 +1,18 @@
-import { Box, Cylinder, Sphere, useTexture } from "@react-three/drei";
+import { Box, Cylinder, Sphere, Edges, useTexture } from "@react-three/drei";
 import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 export function PawnShop({ doorOpen = false, onRadioClick }: { doorOpen?: boolean; onRadioClick?: () => void }) {
   const roomDepth = 8.0;
-  const roomWidth = 5.0;
-  const roomHeight = 3.5;
+  const roomWidth = 6.0;
+  const roomHeight = 3.2;
 
   return (
     <group>
       <Room width={roomWidth} height={roomHeight} depth={roomDepth} doorOpen={doorOpen} />
       <Counter position={[0, 0, -1.0]} />
-      <Radio position={[-1.6, 1.22, -1.0]} onClick={onRadioClick} />
+      <Radio position={[1.0, 1.30, -1.2]} onClick={onRadioClick} />
       <ShopDecorations
         roomWidth={roomWidth}
         roomHeight={roomHeight}
@@ -40,11 +40,13 @@ function Room({
   floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
   floorTexture.repeat.set(4, 6);
 
-  const wallTexture = useTexture("/wall.webp");
-  const leftWallTex = useTexture("/left-wall.webp");
-  const rightWallTex = useTexture("/right-wall.webp");
-  const backWallTex = useTexture("/baclk-wall.webp");
-  const frontWallTex = useTexture("/door-wall.webp");
+  const wallTex = useTexture("/new-left-wall.png");
+  wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+  wallTex.repeat.set(2, 1);
+  const rightWallTex = useTexture("/new-right-wall.png");
+  const doorWallLeftTex = useTexture("/doorwallleft.png");
+  const doorWallRightTex = useTexture("/doorwallright.png");
+  const doorTopTex = useTexture("/door-top.png");
   const ceilingTex = useTexture("/cling.webp");
   const doorLeftTex = useTexture("/door-left.webp");
   const doorRightTex = useTexture("/door-right.webp");
@@ -82,9 +84,53 @@ function Room({
         <meshBasicMaterial map={ceilingTex} />
       </Box>
 
+      {/* Crown molding / ceiling-wall divider */}
+      {/* Back */}
+      <Box args={[width + 0.1, 0.06, 0.12]} position={[0, height, -depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Front */}
+      <Box args={[width + 0.1, 0.06, 0.12]} position={[0, height, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Left */}
+      <Box args={[0.12, 0.06, depth + 0.1]} position={[-width / 2, height, 0]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Right */}
+      <Box args={[0.12, 0.06, depth + 0.1]} position={[width / 2, height, 0]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+
+      {/* Vertical corner trims — where walls meet */}
+      {/* Back-left */}
+      <Box args={[0.06, height, 0.06]} position={[-width / 2, height / 2, -depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Back-right */}
+      <Box args={[0.06, height, 0.06]} position={[width / 2, height / 2, -depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Front-left */}
+      <Box args={[0.06, height, 0.06]} position={[-width / 2, height / 2, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Front-right */}
+      <Box args={[0.06, height, 0.06]} position={[width / 2, height / 2, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Front wall — left panel inner edge (where panel meets door) */}
+      <Box args={[0.04, height, 0.06]} position={[-gapW / 2 - sideW, height / 2, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Front wall — right panel inner edge (where panel meets door) */}
+      <Box args={[0.04, height, 0.06]} position={[gapW / 2 + sideW, height / 2, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+
       {/* Back wall */}
       <Box args={[width, height, 0.1]} position={[0, height / 2, -depth / 2]} receiveShadow>
-        <meshBasicMaterial map={backWallTex} />
+        <meshStandardMaterial map={wallTex} color="#8b7355" roughness={0.85} metalness={0} />
       </Box>
 
       {/* Front wall — left panel */}
@@ -93,7 +139,7 @@ function Room({
         position={[-width / 2 + sideW / 2, height / 2, depth / 2]}
         receiveShadow
       >
-        <meshBasicMaterial map={frontWallTex} />
+        <meshBasicMaterial map={doorWallLeftTex} />
       </Box>
       {/* Front wall — right panel */}
       <Box
@@ -101,7 +147,7 @@ function Room({
         position={[width / 2 - sideW / 2, height / 2, depth / 2]}
         receiveShadow
       >
-        <meshBasicMaterial map={frontWallTex} />
+        <meshBasicMaterial map={doorWallRightTex} />
       </Box>
       {/* Door top beam */}
       <Box
@@ -109,11 +155,26 @@ function Room({
         position={[0, doorH + (height - doorH) / 2, depth / 2]}
         receiveShadow
       >
-        <meshBasicMaterial map={frontWallTex} />
+        <meshBasicMaterial map={doorTopTex} />
+      </Box>
+      {/* Gold trim at bottom of door top image */}
+      <Box args={[gapW + 0.02, 0.04, 0.12]} position={[0, doorH, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Gold trim — left side of door opening */}
+      <Box args={[0.04, doorH, 0.12]} position={[-gapW / 2, doorH / 2, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Gold trim — right side of door opening */}
+      <Box args={[0.04, doorH, 0.12]} position={[gapW / 2, doorH / 2, depth / 2]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.5} roughness={0.3} emissive="#a07828" emissiveIntensity={0.15} />
       </Box>
 
-      {/* Dark gradient behind door opening */}
-      <mesh position={[0, doorH / 2, depth / 2 + 0.5]} rotation={[0, 0, 0]}>
+      {/* Dark wall behind door opening */}
+      <Box args={[gapW + 0.5, doorH + 0.5, 0.8]} position={[0, doorH / 2, depth / 2 + 0.5]}>
+        <meshBasicMaterial color="#0a0604" />
+      </Box>
+      <mesh position={[0, doorH / 2, depth / 2 + 0.08]} rotation={[0, 0, 0]}>
         <planeGeometry args={[gapW, doorH]} />
         <shaderMaterial
           vertexShader={`
@@ -126,8 +187,8 @@ function Room({
           fragmentShader={`
             varying vec2 vUv;
             void main() {
-              float darkness = smoothstep(0.0, 0.7, 1.0 - vUv.y);
-              gl_FragColor = vec4(0.0, 0.0, 0.0, mix(0.6, 1.0, darkness));
+              float darkness = smoothstep(0.0, 0.5, 1.0 - vUv.y);
+              gl_FragColor = vec4(0.02, 0.01, 0.005, mix(0.85, 1.0, darkness));
             }
           `}
           transparent
@@ -166,12 +227,12 @@ function Room({
 
       {/* Left wall */}
       <Box args={[0.1, height, depth]} position={[-width / 2 - 0.05, height / 2, 0]} receiveShadow>
-        <meshBasicMaterial map={leftWallTex} />
+        <meshStandardMaterial map={wallTex} color="#8b7355" roughness={0.85} metalness={0} />
       </Box>
 
       {/* Right wall */}
       <Box args={[0.1, height, depth]} position={[width / 2 + 0.05, height / 2, 0]} receiveShadow>
-        <meshBasicMaterial map={rightWallTex} />
+        <meshStandardMaterial map={rightWallTex} color="#8b7355" roughness={0.85} metalness={0} />
       </Box>
 
       {/* Skirting board */}
@@ -215,29 +276,29 @@ function Counter({ position }: { position: [number, number, number] }) {
         receiveShadow
         castShadow
       >
-        <meshStandardMaterial map={tableTex} roughness={1} metalness={0} />
+        <meshStandardMaterial map={tableTex} color="#8b6842" roughness={0.95} metalness={0} />
       </Box>
 
       {/* Gold edge trim — front */}
       <Box args={[4.22, 0.035, 0.025]} position={[0, 1.18, 0.56]} castShadow>
-        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+        <meshStandardMaterial color="#d5a24d" metalness={0.3} roughness={0.8} emissive="#a07828" emissiveIntensity={0.15} />
       </Box>
       {/* Gold edge trim — back */}
       <Box args={[4.22, 0.035, 0.025]} position={[0, 1.18, -0.56]} castShadow>
-        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+        <meshStandardMaterial color="#d5a24d" metalness={0.3} roughness={0.8} emissive="#a07828" emissiveIntensity={0.15} />
       </Box>
       {/* Gold edge trim — left */}
       <Box args={[0.025, 0.035, 1.12]} position={[-2.11, 1.18, 0]} castShadow>
-        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+        <meshStandardMaterial color="#d5a24d" metalness={0.3} roughness={0.8} emissive="#a07828" emissiveIntensity={0.15} />
       </Box>
       {/* Gold edge trim — right */}
       <Box args={[0.025, 0.035, 1.12]} position={[2.11, 1.18, 0]} castShadow>
-        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+        <meshStandardMaterial color="#d5a24d" metalness={0.3} roughness={0.8} emissive="#a07828" emissiveIntensity={0.15} />
       </Box>
 
       {/* Thin inner accent line — front */}
       <Box args={[4.18, 0.012, 0.012]} position={[0, 1.165, 0.54]} castShadow>
-        <meshPhysicalMaterial color="#ffd877" metalness={0.9} roughness={0.15} clearcoat={0.8} emissive="#c89530" emissiveIntensity={0.2} />
+        <meshStandardMaterial color="#ffd877" metalness={0.3} roughness={0.8} emissive="#c89530" emissiveIntensity={0.2} />
       </Box>
     </group>
   );
@@ -245,57 +306,45 @@ function Counter({ position }: { position: [number, number, number] }) {
 
 function Radio({ position, onClick }: { position: [number, number, number]; onClick?: () => void }) {
   const [hovered, setHovered] = useState(false);
-  const glowRef = useRef<THREE.Mesh>(null);
+  const outlineRef = useRef<THREE.Mesh>(null);
+  const radioTex = useTexture("/radio.png");
 
-  useFrame((state) => {
-    if (glowRef.current) {
-      glowRef.current.visible = hovered;
-      if (hovered) {
-        const pulse = Math.sin(state.clock.elapsedTime * 4) * 0.15 + 0.85;
-        glowRef.current.scale.setScalar(pulse);
-      }
-    }
+  useFrame(() => {
+    if (outlineRef.current) outlineRef.current.visible = hovered;
     document.body.style.cursor = hovered ? 'pointer' : 'auto';
   });
 
   return (
     <group
       position={position}
+      rotation={[0, Math.PI, 0]}
+      scale={[0.85, 0.85, 0.85]}
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
     >
-      {/* Radio body */}
-      <Box args={[0.35, 0.2, 0.18]} castShadow>
-        <meshStandardMaterial color="#2a2a2a" roughness={0.6} metalness={0.3} />
+      {/* Radio body — 16:9 */}
+      <Box args={[0.48, 0.27, 0.12]} castShadow>
+        <meshStandardMaterial color="#3a2010" roughness={0.7} metalness={0.1} attach="material-0" />
+        <meshStandardMaterial color="#3a2010" roughness={0.7} metalness={0.1} attach="material-1" />
+        <meshStandardMaterial color="#3a2010" roughness={0.7} metalness={0.1} attach="material-2" />
+        <meshStandardMaterial color="#3a2010" roughness={0.7} metalness={0.1} attach="material-3" />
+        <meshStandardMaterial map={radioTex} roughness={0.6} metalness={0.1} attach="material-4" />
+        <meshStandardMaterial color="#3a2010" roughness={0.7} metalness={0.1} attach="material-5" />
       </Box>
-      {/* Speaker grille left */}
-      <Box args={[0.1, 0.12, 0.01]} position={[-0.08, 0, 0.095]}>
-        <meshStandardMaterial color="#1a1a1a" />
-      </Box>
-      {/* Speaker grille right */}
-      <Box args={[0.1, 0.12, 0.01]} position={[0.08, 0, 0.095]}>
-        <meshStandardMaterial color="#1a1a1a" />
-      </Box>
-      {/* Tuner dial */}
-      <Cylinder args={[0.025, 0.025, 0.02, 8]} position={[-0.06, 0.06, 0.095]} rotation={[Math.PI / 2, 0, 0]}>
-        <meshStandardMaterial color="#d5a24d" metalness={0.8} roughness={0.2} />
-      </Cylinder>
-      {/* Volume knob */}
-      <Cylinder args={[0.02, 0.02, 0.02, 8]} position={[0.06, 0.06, 0.095]} rotation={[Math.PI / 2, 0, 0]}>
-        <meshStandardMaterial color="#d5a24d" metalness={0.8} roughness={0.2} />
-      </Cylinder>
+
       {/* Antenna */}
-      <Cylinder args={[0.005, 0.003, 0.25, 4]} position={[0.12, 0.2, 0]} rotation={[0, 0, -0.2]}>
+      <Cylinder args={[0.004, 0.002, 0.3, 4]} position={[0.2, 0.28, 0]} rotation={[0, 0, -0.15]}>
         <meshStandardMaterial color="#888" metalness={0.9} roughness={0.1} />
       </Cylinder>
-      {/* Antenna tip */}
-      <Sphere args={[0.008, 6, 6]} position={[0.17, 0.32, 0]}>
+      <Sphere args={[0.008, 6, 6]} position={[0.24, 0.42, 0]}>
         <meshStandardMaterial color="#d5a24d" metalness={0.9} roughness={0.1} />
       </Sphere>
-      {/* Hover glow outline */}
-      <Box ref={glowRef} args={[0.38, 0.23, 0.21]} visible={false}>
-        <meshStandardMaterial color="#ffffff" transparent opacity={0.15} emissive="#ffffff" emissiveIntensity={0.5} wireframe />
+
+      {/* Hover white edge outline */}
+      <Box ref={outlineRef} args={[0.48, 0.27, 0.12]} visible={false}>
+        <meshBasicMaterial color="#ffffff" transparent opacity={0} />
+        <Edges threshold={1} color="#ffffff" lineWidth={8} />
       </Box>
     </group>
   );

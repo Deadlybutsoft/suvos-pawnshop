@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { Box, Html, Sphere, Cylinder } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -49,9 +49,9 @@ function generateTraits(gender: 'male' | 'female') {
   };
 }
 
-export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, captionsEnabled }: {
+export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, voiceDuration, captionsEnabled }: {
   id: string; npc: NPCPersonality | null; isLeaving: boolean;
-  targetPos: [number, number, number]; currentLine: string; captionsEnabled: boolean;
+  targetPos: [number, number, number]; currentLine: string; voiceDuration: number; captionsEnabled: boolean;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Group>(null);
@@ -65,6 +65,26 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
   const gesturePhaseRef = useRef(0);
 
   const isTalking = currentLine !== '' && currentLine !== '...';
+
+  // Typewriter effect synced with voice duration
+  const [displayedText, setDisplayedText] = useState('');
+  const typewriterRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (typewriterRef.current) { clearInterval(typewriterRef.current); typewriterRef.current = null; }
+    if (!isTalking || isLeaving || !captionsEnabled) { setDisplayedText(''); return; }
+    setDisplayedText('');
+    const text = currentLine;
+    const dur = (voiceDuration || Math.max(1.5, text.length * 0.06)) * 1000;
+    const interval = Math.max(20, dur / text.length);
+    let i = 0;
+    typewriterRef.current = setInterval(() => {
+      i++;
+      setDisplayedText(text.slice(0, i));
+      if (i >= text.length && typewriterRef.current) { clearInterval(typewriterRef.current); typewriterRef.current = null; }
+    }, interval);
+    return () => { if (typewriterRef.current) { clearInterval(typewriterRef.current); typewriterRef.current = null; } };
+  }, [currentLine, voiceDuration, isLeaving, captionsEnabled, isTalking]);
 
   const body = useMemo(() => {
     const bw = traits.bodyWidth;
@@ -488,12 +508,52 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
         </Box>
       </group>
 
-      {/* === CAPTION BUBBLE === */}
-      {captionsEnabled && currentLine && currentLine !== "..." && (
-        <Html position={[0, headY + 0.3, 0]} center zIndexRange={[100, 0]}>
-          <div className="bg-black/90 backdrop-blur-md text-white px-4 py-3 rounded-2xl text-lg w-max max-w-[280px] whitespace-normal text-center shadow-2xl border border-white/20 select-none pointer-events-none transform -translate-y-full mb-1">
-            {currentLine}
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-8 border-l-transparent border-r-8 border-r-transparent border-t-8 border-t-black/90"></div>
+      {/* === NAME + CAPTION CARD === */}
+      {captionsEnabled && !isLeaving && (
+        <Html position={[0, headY + 0.05, 0]} center zIndexRange={[100, 0]}>
+          <div style={{ pointerEvents: 'none', userSelect: 'none', transform: 'translateY(-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{
+              background: 'rgba(0,0,0,0.85)',
+              border: '1px solid #d5a24d',
+              borderRadius: '6px',
+              padding: displayedText ? '3px 20px 5px' : '3px 20px',
+              minWidth: '180px',
+              maxWidth: '420px',
+              width: displayedText ? '400px' : 'auto',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.6)',
+            }}>
+              <div style={{
+                fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+                fontSize: '14px',
+                fontWeight: 700,
+                color: '#ffcc4d',
+                textAlign: 'center',
+                lineHeight: 1.1,
+              }}>{npc?.name ?? 'NPC'}</div>
+              {displayedText && (
+                <div style={{
+                  fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
+                  fontSize: '17px',
+                  fontWeight: 500,
+                  color: '#ffffffee',
+                  lineHeight: 1.25,
+                  marginTop: '2px',
+                  textAlign: 'center',
+                  wordBreak: 'break-word',
+                }}>
+                  {displayedText}
+                  <span style={{ opacity: 0.5, animation: 'blink 0.8s steps(2) infinite' }}>▌</span>
+                </div>
+              )}
+            </div>
+            {/* Arrow pointing down toward head */}
+            <div style={{
+              width: 0, height: 0,
+              borderLeft: '7px solid transparent',
+              borderRight: '7px solid transparent',
+              borderTop: '7px solid #d5a24d',
+              marginTop: '-1px',
+            }} />
           </div>
         </Html>
       )}

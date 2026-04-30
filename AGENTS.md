@@ -56,6 +56,7 @@ If this palette evolves, update both `src/index.css` and this file together.
 
 - **Bungee Shade** — primary display font for big titles (hero, login, level select, rules)
 - **Bungee** — secondary display font for subtitles, buttons, labels, level names, input text
+- **MedievalSharp** — royal/medieval display font for login title and level select headings
 - **Fallback stack:** `"Impact"`, `"Arial Black"`, `"Haettenschweiler"`, `"Trebuchet MS"`, sans-serif
 
 ### Usage

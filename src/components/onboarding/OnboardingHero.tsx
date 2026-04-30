@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 type OnboardingHeroProps = {
   onStart: () => void;
@@ -6,10 +6,34 @@ type OnboardingHeroProps = {
 
 export function OnboardingHero({ onStart }: OnboardingHeroProps) {
   const [show, setShow] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setShow(true), 800);
     return () => clearTimeout(t);
+  }, []);
+
+  // Auto-play vintage music on mount (retry on first user interaction if blocked)
+  useEffect(() => {
+    const audio = new Audio("/music/pawnshop-theme.mp3");
+    audio.loop = true;
+    audio.volume = 0.4;
+    audioRef.current = audio;
+    const tryPlay = () => {
+      audio.play().then(() => {
+        window.removeEventListener("keydown", tryPlay);
+        window.removeEventListener("pointerdown", tryPlay);
+      }).catch(() => {});
+    };
+    tryPlay();
+    window.addEventListener("keydown", tryPlay);
+    window.addEventListener("pointerdown", tryPlay);
+    return () => {
+      window.removeEventListener("keydown", tryPlay);
+      window.removeEventListener("pointerdown", tryPlay);
+      audio.pause();
+      audio.src = "";
+    };
   }, []);
 
   useEffect(() => {
@@ -25,34 +49,30 @@ export function OnboardingHero({ onStart }: OnboardingHeroProps) {
 
   return (
     <section
-      className="relative min-h-screen overflow-hidden bg-cover bg-center flex flex-col items-center justify-end pb-16 cursor-pointer"
-      style={{ backgroundImage: "url('/pawnshop-hero.webp')", backgroundColor: "var(--game-bg-0)" }}
+      className="relative min-h-screen overflow-hidden flex flex-col items-center justify-end pb-16 cursor-pointer"
+      style={{ backgroundColor: "var(--game-bg-0)" }}
       onClick={() => show && onStart()}
     >
+      {/* Shaking background */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: "url('/pawnshop-hero.webp')",
+          animation: "hero-shake 3s ease-in-out infinite",
+        }}
+      />
+
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
       <div className="relative z-10 flex flex-col items-center text-center px-6">
-        <h1
-          className="uppercase select-none mb-4"
-          style={{
-            fontFamily: "'Bungee Shade', 'Impact', cursive",
-            fontSize: "clamp(2rem, 6vw, 4.5rem)",
-            color: "var(--game-accent)",
-            textShadow: "0 0 40px rgba(255,204,77,0.5), 0 6px 20px rgba(0,0,0,0.9), 0 0 80px rgba(255,179,0,0.2)",
-            letterSpacing: "0.04em",
-            lineHeight: 1.05,
-          }}
-        >
-          Suvo's Pawnshop
-        </h1>
-
         {show && (
           <p
-            className="uppercase tracking-[0.3em] select-none animate-pulse"
+            className="uppercase tracking-[0.3em] select-none"
             style={{
               fontFamily: "'Bungee', 'Arial Black', sans-serif",
-              fontSize: "clamp(0.6rem, 1.5vw, 0.9rem)",
-              color: "var(--game-text-muted)",
+              fontSize: "clamp(0.45rem, 1vw, 0.7rem)",
+              color: "var(--game-text-dim)",
+              animation: "hero-glow-blink 1.8s ease-in-out infinite",
               textShadow: "0 2px 10px rgba(0,0,0,0.8)",
             }}
           >

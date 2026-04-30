@@ -5,13 +5,10 @@ type Props = {
 };
 
 const RULES = [
-  "Sellers walk in with items — haggle hard, buy low, or walk away.",
-  "Some items are FAKE and some are STOLEN — trust no one blindly.",
-  "Selling a fake or stolen item to a buyer means instant arrest — game over.",
-  "Buying stolen goods has a 50% chance of police catching you — game over.",
-  "Call experts from your phone to verify items — but it costs money and they may not pick up.",
-  "Run ads to attract buyers — no buyers means no profit.",
-  "Pay your rent on time or lose everything — this shop doesn't run itself.",
+  "Buy low, sell high — fakes & stolen goods mean jail.",
+  "Call experts to verify — costs money, may not pick up.",
+  "Run ads to attract buyers — no buyers, no profit.",
+  "Pay rent on time or lose everything.",
 ];
 
 export function RulesScreen({ onAccept }: Props) {
@@ -22,85 +19,108 @@ export function RulesScreen({ onAccept }: Props) {
       className="relative min-h-screen overflow-hidden bg-cover bg-center flex flex-col items-center justify-center"
       style={{ backgroundImage: "url('/rules-bg.webp')", backgroundColor: "var(--game-bg-0)" }}
     >
-      <div className="absolute inset-0 bg-black/65" />
+      <div className="absolute inset-0 bg-black/35" />
 
-      <div className="relative z-10 w-full max-w-2xl mx-4 px-6">
+      <div className="relative z-10 w-full max-w-3xl mx-4 px-6 flex flex-col items-center">
         {/* Title */}
         <h1
-          className="uppercase leading-none mb-8 text-center select-none"
+          className="mb-10 text-center select-none"
           style={{
-            fontFamily: "'Bungee Shade', 'Impact', cursive",
-            fontSize: "clamp(1.3rem, 3.5vw, 2.2rem)",
+            fontFamily: "'MedievalSharp', 'Bungee Shade', cursive",
+            fontSize: "clamp(2.8rem, 8vw, 5rem)",
             color: "var(--game-accent)",
             textShadow: "0 0 40px rgba(255,204,77,0.5), 0 6px 20px rgba(0,0,0,0.9)",
             lineHeight: 1.2,
           }}
         >
-          You Must Read the Rules<br />Before Sitting in Suvo's Pawn Shop
+          Know the Rules Before You Deal!
         </h1>
 
         {/* Rules list */}
-        <div className="space-y-3 mb-8">
+        <div className="space-y-4 mb-10 w-full max-w-xl">
           {RULES.map((rule, i) => (
             <div
               key={i}
-              className="flex gap-3 items-start"
+              className="flex gap-3 items-center"
               style={{
                 background: "rgba(63,42,26,0.7)",
                 border: "1px solid var(--game-border)",
-                borderRadius: "12px",
-                padding: "12px 16px",
+                borderRadius: "10px",
+                padding: "14px 18px",
               }}
             >
               <span
-                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm"
+                className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
                 style={{
-                  fontFamily: "'Bungee', sans-serif",
+                  fontFamily: "'Quantico', sans-serif",
+                  fontSize: "0.9rem",
+                  fontWeight: 700,
                   background: "var(--game-accent)",
                   color: "var(--game-bg-0)",
                 }}
               >
                 {i + 1}
               </span>
-              <p
-                className="text-sm leading-relaxed"
-                style={{ fontFamily: "'Bungee', sans-serif", color: "var(--game-text)", fontSize: "clamp(0.65rem, 1.5vw, 0.8rem)" }}
-              >
+              <p style={{ fontFamily: "'Bungee', sans-serif", color: "var(--game-text)", fontSize: "clamp(0.6rem, 1.4vw, 0.78rem)" }}>
                 {rule}
               </p>
             </div>
           ))}
         </div>
 
-        {/* Checkbox */}
-        <label
-          className="flex items-start gap-3 cursor-pointer mb-6 select-none"
-          style={{ padding: "12px 16px", background: "rgba(63,42,26,0.5)", borderRadius: "12px", border: "1px solid var(--game-border)" }}
+        {/* Toggle accept */}
+        <div
+          className="flex items-center gap-4 mb-8 cursor-pointer select-none"
+          onClick={() => setAccepted(a => !a)}
         >
-          <input
-            type="checkbox"
-            checked={accepted}
-            onChange={e => setAccepted(e.target.checked)}
-            className="mt-1 w-5 h-5 accent-[#ffcc4d] shrink-0"
-          />
-          <span
-            style={{ fontFamily: "'Bungee', sans-serif", color: "var(--game-text-muted)", fontSize: "clamp(0.6rem, 1.3vw, 0.75rem)" }}
+          <div
+            className="relative shrink-0"
+            style={{
+              width: "56px",
+              height: "30px",
+              borderRadius: "15px",
+              background: accepted ? "var(--game-accent)" : "var(--game-surface)",
+              border: "2px solid var(--game-border-strong)",
+              transition: "background 0.2s ease",
+            }}
           >
-            I have read all the rules and I promise I will run this shop to the best of my ability
+            <div
+              style={{
+                position: "absolute",
+                top: "3px",
+                left: accepted ? "28px" : "3px",
+                width: "20px",
+                height: "20px",
+                borderRadius: "50%",
+                background: accepted ? "var(--game-bg-0)" : "var(--game-text-dim)",
+                transition: "left 0.2s ease, background 0.2s ease",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.4)",
+              }}
+            />
+          </div>
+          <span style={{ fontFamily: "'Dancing Script', cursive", color: "var(--game-text-muted)", fontSize: "clamp(1rem, 2vw, 1.2rem)" }}>
+            I accept the rules
           </span>
-        </label>
-
-        {/* Continue button */}
-        <div className="text-center">
-          <button
-            disabled={!accepted}
-            onClick={onAccept}
-            className={`game-button-primary uppercase tracking-[0.15em] px-12 py-4 transition-all ${!accepted ? "opacity-30 cursor-not-allowed" : ""}`}
-            style={{ fontFamily: "'Bungee', sans-serif", fontSize: "clamp(1rem, 2.2vw, 1.3rem)" }}
-          >
-            I'm Ready
-          </button>
         </div>
+
+        {/* Enter button */}
+        <button
+          disabled={!accepted}
+          className={`game-button-primary uppercase tracking-[0.15em] px-14 py-5 ${!accepted ? "opacity-30 cursor-not-allowed" : ""}`}
+          style={{
+            fontFamily: "'Bungee', sans-serif",
+            fontSize: "clamp(1.1rem, 2.5vw, 1.4rem)",
+            boxShadow: accepted ? "0 0 20px rgba(255,204,77,0.3), 0 6px 20px rgba(0,0,0,0.5)" : "none",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={e => { if (accepted) { e.currentTarget.style.transform = "translateY(-2px) scale(1.04)"; e.currentTarget.style.boxShadow = "0 0 30px rgba(255,204,77,0.5), 0 8px 25px rgba(0,0,0,0.6)"; } }}
+          onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = accepted ? "0 0 20px rgba(255,204,77,0.3), 0 6px 20px rgba(0,0,0,0.5)" : "none"; }}
+          onMouseDown={e => { if (accepted) e.currentTarget.style.transform = "translateY(2px) scale(0.97)"; }}
+          onMouseUp={e => { if (accepted) e.currentTarget.style.transform = "translateY(-2px) scale(1.04)"; }}
+          onClick={() => { if (accepted) { new Audio("/sfx/click.mp3").play().catch(() => {}); onAccept(); } }}
+        >
+          Open the Shop
+        </button>
       </div>
     </section>
   );

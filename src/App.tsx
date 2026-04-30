@@ -66,6 +66,7 @@ import { OnboardingHero } from "./components/onboarding/OnboardingHero";
 import { LoginScreen } from "./components/onboarding/LoginScreen";
 import { LevelSelect } from "./components/onboarding/LevelSelect";
 import { RulesScreen } from "./components/onboarding/RulesScreen";
+import { useGameSession, resolveStartStep } from "./hooks/useGameSession";
 import OnboardingSetup, {
   type OnboardingSetupData,
 } from "./components/onboarding/OnboardingSetup";
@@ -86,21 +87,34 @@ export default function App() {
     return (validSteps as readonly string[]).includes(h) ? (h as Step) : "hero";
   };
 
-  const [onboardingStep, setOnboardingStep] = useState<Step>(hashToStep);
-  const [playerName, setPlayerName] = useState("");
-  const [currentLevel, setCurrentLevel] = useState(1);
+  const { session, update: updateSession, clear: clearSession } = useGameSession();
+  const [onboardingStep, setOnboardingStep] = useState<Step>(() => {
+    const h = hashToStep();
+    // If hash says hero/login but player is already logged in, skip ahead
+    if (h === "hero" || h === "login") return resolveStartStep(session);
+    return h;
+  });
+  const [playerName, setPlayerName] = useState(session.playerName);
+  const [currentLevel, setCurrentLevel] = useState(session.currentLevel);
 
   // Sync state → hash
   useEffect(() => {
     window.location.hash = `/${onboardingStep}`;
   }, [onboardingStep]);
 
-  // Sync hash → state (back/forward navigation)
+  // Sync hash → state (back/forward navigation, respects session)
   useEffect(() => {
-    const onHashChange = () => setOnboardingStep(hashToStep());
+    const onHashChange = () => {
+      const step = hashToStep();
+      if ((step === "hero" || step === "login") && session.playerName) {
+        setOnboardingStep(resolveStartStep(session));
+      } else {
+        setOnboardingStep(step);
+      }
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
+  }, [session]);
   const [onboardingConfig, setOnboardingConfig] = useState<OnboardingSetupData>(
     {
       ownerName: "",
@@ -120,6 +134,7 @@ export default function App() {
       isLeaving: boolean;
       chatHistory: { role: "model" | "user"; text: string }[];
       currentLine: string; // the string they are currently saying
+      voiceDuration: number; // seconds for typewriter sync
       chatSession: { systemPrompt: string; messages: { role: "user" | "assistant"; content: string }[] }; // groq chat state
       position: [number, number, number]; // target standing pos
       item: string;
@@ -148,6 +163,16 @@ export default function App() {
   const [radioTrack, setRadioTrack] = useState(0);
   const [radioVolume, setRadioVolume] = useState(0.5);
   const radioRef = useRef<HTMLAudioElement | null>(null);
+  const themeRef = useRef<HTMLAudioElement | null>(null);
+
+  const startThemeMusic = () => {
+    if (themeRef.current) return;
+    const a = new Audio("/music/vintage-swing.mp3");
+    a.loop = true;
+    a.volume = 0.15;
+    a.play().catch(() => {});
+    themeRef.current = a;
+  };
   const RADIO_TRACKS = [
     { name: "Jazz Lounge", file: "/music/jazz-lounge.mp3" },
     { name: "Retro Blues", file: "/music/retro-blues.mp3" },
@@ -370,7 +395,10 @@ export default function App() {
     if (radioRef.current) { radioRef.current.pause(); radioRef.current = null; }
     const a = new Audio(RADIO_TRACKS[idx].file);
     a.volume = radioVolume;
-    a.loop = true;
+    a.onended = () => {
+      const next = (idx + 1) % RADIO_TRACKS.length;
+      radioPlay(next);
+    };
     a.play().catch(() => {});
     radioRef.current = a;
     setRadioPlaying(true);
@@ -389,10 +417,11 @@ export default function App() {
     if (radioRef.current) radioRef.current.volume = v;
   };
 
-  const speakText = async (text: string, voiceId = "JBFqnCBsd6RMkjVDRZzb") => {
+  const speakText = async (text: string, voiceId = "JBFqnCBsd6RMkjVDRZzb"): Promise<number> => {
+    const estimatedDuration = Math.max(1.5, text.length * 0.06);
     if (!elevenLabsKey) {
       console.warn("No ElevenLabs API key set, skipping TTS");
-      return;
+      return estimatedDuration;
     }
     try {
       const res = await fetch(
@@ -407,8 +436,13 @@ export default function App() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      const duration = await new Promise<number>((resolve) => {
+        audio.onloadedmetadata = () => resolve(audio.duration || estimatedDuration);
+        setTimeout(() => resolve(estimatedDuration), 2000);
+      });
       audio.onended = () => URL.revokeObjectURL(url);
       audio.play();
+      return duration;
     } catch (e) {
       console.error("ElevenLabs TTS failed, falling back to browser:", e);
       if ("speechSynthesis" in window) {
@@ -416,6 +450,7 @@ export default function App() {
         const utterance = new SpeechSynthesisUtterance(text);
         window.speechSynthesis.speak(utterance);
       }
+      return estimatedDuration;
     }
   };
 
@@ -446,13 +481,9 @@ export default function App() {
   const getVoiceForNPC = (npcId: string) => NPC_VOICES[npcId] || "JBFqnCBsd6RMkjVDRZzb";
 
   const spawnNPC = (specificType?: NPCType) => {
-    if (activeNPCs.length >= 2) return;
+    if (activeNPCs.length >= 1) return;
 
-    // Pick side
-    const hasLeft = activeNPCs.some((n) => n.position[0] < 0);
-    const pos: [number, number, number] = hasLeft
-      ? [0.6, 0, 0.5]
-      : [-0.6, 0, 0.5];
+    const pos: [number, number, number] = [0, 0, 0.5];
 
     const npcDefinition = specificType
       ? getRandomNPCByType(specificType)
@@ -503,15 +534,13 @@ export default function App() {
       isLeaving: false,
       chatHistory: [],
       currentLine: "...",
+      voiceDuration: 0,
       chatSession: session,
       position: pos,
       item: spawnedItem.name,
       itemData: spawnedItem,
       hasItemBox:
-        npc.type === "SELLER" ||
-        npc.type === "BUYER" ||
-        npc.type === "EXPERT" ||
-        npc.type === "COLLECTOR",
+        npc.type === "SELLER",
     };
 
     setActiveNPCs((prev) => [...prev, newNPC]);
@@ -531,11 +560,11 @@ export default function App() {
   // Auto-spawn: sellers come every 15-25s, walk-in buyers every 40-60s
   useEffect(() => {
     const sellerTimer = setInterval(() => {
-      if (activeNPCs.length < 2) spawnNPC("SELLER");
+      if (activeNPCs.length < 1) spawnNPC("SELLER");
     }, 15000 + Math.random() * 10000);
 
     const walkinTimer = setInterval(() => {
-      if (activeNPCs.length < 2 && Math.random() < 0.4) {
+      if (activeNPCs.length < 1 && Math.random() < 0.4) {
         spawnNPC(Math.random() < 0.7 ? "BUYER" : "COLLECTOR");
       }
     }, 40000 + Math.random() * 20000);
@@ -543,10 +572,10 @@ export default function App() {
     return () => { clearInterval(sellerTimer); clearInterval(walkinTimer); };
   }, [activeNPCs.length]);
 
-  // Run Ad — pay $100 to attract a buyer
+  // Run Ad — pay $500 to attract a buyer
   const runAd = () => {
     if (money < 500) return;
-    if (activeNPCs.length >= 2) return;
+    if (activeNPCs.length >= 1) return;
     setMoney(prev => prev - 500);
     playSfx("click");
     spawnNPC(Math.random() < 0.6 ? "BUYER" : "COLLECTOR");
@@ -650,6 +679,7 @@ export default function App() {
             ? {
                 ...n,
                 currentLine: text,
+                voiceDuration: Math.max(1.5, text.length * 0.06),
                 chatHistory: [...n.chatHistory, { role: "model", text }],
               }
             : n,
@@ -657,7 +687,11 @@ export default function App() {
       );
 
       if (text) {
-        speakText(text, getVoiceForNPC(npcObj.npc.id));
+        speakText(text, getVoiceForNPC(npcObj.npc.id)).then((dur) => {
+          setActiveNPCs((prev) =>
+            prev.map((n) => (n.id === id ? { ...n, voiceDuration: dur } : n)),
+          );
+        });
       }
 
       if (isLeavingAction) {
@@ -678,6 +712,9 @@ export default function App() {
     const msg = inputText.trim();
     setInputText("");
     setShowInput(false);
+
+    // Stop any ongoing NPC speech audio
+    window.speechSynthesis?.cancel();
 
     const obj = activeNPCs.find((n) => n.id === targetId);
     if (obj) {
@@ -756,6 +793,11 @@ export default function App() {
       mediaRecorderRef.current = recorder;
       recorder.start();
       setIsListening(true);
+      // Interrupt NPC speech when player starts talking
+      window.speechSynthesis?.cancel();
+      if (selectedNpcId) {
+        setActiveNPCs((prev) => prev.map((n) => n.id === selectedNpcId ? { ...n, currentLine: '' } : n));
+      }
     } catch (e) {
       console.error("Mic access denied:", e);
       alert("Microphone access denied.");
@@ -852,6 +894,7 @@ export default function App() {
     return (
       <OnboardingHero
         onStart={() => {
+          startThemeMusic();
           setOnboardingStep("login");
         }}
       />
@@ -863,6 +906,7 @@ export default function App() {
       <LoginScreen
         onLogin={(name) => {
           setPlayerName(name);
+          updateSession({ playerName: name });
           setOnboardingStep("levels");
         }}
       />
@@ -875,6 +919,7 @@ export default function App() {
         playerName={playerName}
         onSelectLevel={(level) => {
           setCurrentLevel(level);
+          updateSession({ currentLevel: level });
           setOnboardingStep("rules");
         }}
       />
@@ -885,6 +930,7 @@ export default function App() {
     return (
       <RulesScreen
         onAccept={() => {
+          updateSession({ rulesAccepted: true });
           setMoney(onboardingConfig.startingCash);
           setCaptionsEnabled(onboardingConfig.captionsEnabled);
           setOnboardingStep("game");
@@ -948,61 +994,43 @@ export default function App() {
 
       {isSettingsOpen && (
         <div className="game-overlay pointer-events-auto absolute inset-0 z-20 flex items-center justify-center px-6 py-8">
-          <div className="game-menu-shell game-scanlines flex h-full max-h-[620px] w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <aside className="game-menu-sidebar hidden w-64 shrink-0 p-6 md:block">
-              <div className="mb-10">
-                <div className="game-label">Suvo's Pawnshop</div>
-                <h2 className="game-title mt-3 text-4xl tracking-tight">
+          <div className="game-menu-shell flex h-full max-h-[620px] w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Sidebar */}
+            <aside className="hidden md:flex w-60 shrink-0 flex-col p-6" style={{ background: 'var(--game-surface)', borderRight: '1px solid var(--game-border)' }}>
+              <div className="mb-8">
+                <div className="game-text-dim text-xs uppercase tracking-[0.2em]">Suvo's Pawnshop</div>
+                <h2 style={{ fontFamily: "'Bungee', sans-serif", fontSize: '1.8rem', color: 'var(--game-accent)', marginTop: '0.5rem' }}>
                   Paused
                 </h2>
               </div>
 
-              <nav className="space-y-2">
-                <div className="game-menu-tab game-menu-tab-active px-4 py-3 text-sm">
-                  Options
-                </div>
+              <nav className="space-y-2 flex-1">
+                <div className="game-menu-tab game-menu-tab-active px-4 py-3 text-sm">Options</div>
                 <button
-                  onClick={() => {
-                    playClickSound();
-                    setShowShortcuts(true);
-                  }}
+                  onClick={() => { playClickSound(); setShowShortcuts(true); }}
                   className="game-menu-tab w-full px-4 py-3 text-left text-sm"
                 >
                   Controls
                 </button>
-                <div className="game-menu-tab px-4 py-3 text-sm opacity-45">
-                  Save Game
-                </div>
                 <button
-                  onClick={() => {
-                    playClickSound();
-                    setIsSettingsOpen(false);
-                    setOnboardingStep("levels");
-                  }}
+                  onClick={() => { playClickSound(); setIsSettingsOpen(false); setOnboardingStep("levels"); }}
                   className="game-menu-tab w-full px-4 py-3 text-left text-sm"
                 >
                   Back to Levels
                 </button>
               </nav>
 
-              <div className="game-text-dim mt-auto pt-10 text-xs uppercase tracking-[0.2em]">
-                Session active
-              </div>
+              <div className="game-text-dim text-xs uppercase tracking-[0.2em]">Session active</div>
             </aside>
 
+            {/* Main content */}
             <section className="flex min-w-0 flex-1 flex-col">
-              <header className="game-menu-header flex items-center justify-between border-b px-6 py-5">
-                <div>
-                  <div className="game-label">Game Menu</div>
-                  <h3 className="game-title mt-1 text-2xl tracking-[0.12em]">
-                    Settings
-                  </h3>
-                </div>
+              <header className="flex items-center justify-between border-b px-6 py-5" style={{ borderColor: 'var(--game-border)' }}>
+                <h3 style={{ fontFamily: "'Bungee', sans-serif", fontSize: '1.4rem', color: 'var(--game-accent)', letterSpacing: '0.12em' }}>
+                  Settings
+                </h3>
                 <button
-                  onClick={() => {
-                    playClickSound();
-                    setIsSettingsOpen(false);
-                  }}
+                  onClick={() => { playClickSound(); setIsSettingsOpen(false); }}
                   className="game-icon-button p-3"
                   aria-label="Close settings"
                 >
@@ -1010,132 +1038,91 @@ export default function App() {
                 </button>
               </header>
 
-              <div className="flex-1 space-y-4 overflow-y-auto [&::-webkit-scrollbar]:hidden p-6">
-                <div className="game-setting-row p-5">
-                  <div className="mb-4 flex items-center justify-between gap-4">
-                    <div>
-                      <label className="game-title text-sm tracking-[0.18em]">
-                        Master Volume
-                      </label>
-                      <p className="game-text-muted mt-1 text-sm">
-                        Control music, voices, and interface sounds.
-                      </p>
+              <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden p-6 space-y-6">
+                {/* Sound */}
+                <div>
+                  <div className="game-text-muted text-xs uppercase tracking-[0.25em] mb-3" style={{ fontFamily: "'Bungee', sans-serif" }}>Sound</div>
+                  <div className="game-setting-row p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="game-label text-sm" style={{ fontFamily: "'Bungee', sans-serif" }}>Master Volume</label>
+                      <span className="game-value-chip px-3 py-1 text-sm">80</span>
                     </div>
-                    <span className="game-value-chip min-w-16 px-3 py-2 text-center text-sm">
-                      80
-                    </span>
+                    <input type="range" className="w-full cursor-pointer accent-[#d7aa55]" defaultValue="80" />
                   </div>
-                  <input
-                    type="range"
-                    className="w-full cursor-pointer accent-[#d7aa55]"
-                    defaultValue="80"
-                  />
                 </div>
 
-                <div className="game-setting-row flex items-center justify-between gap-6 p-5">
-                  <div>
-                    <label className="game-title text-sm tracking-[0.18em]">
-                      Captions
-                    </label>
-                    <p className="game-text-muted mt-1 text-sm">
-                      Display character dialogue over NPCs.
-                    </p>
+                {/* Display */}
+                <div>
+                  <div className="game-text-muted text-xs uppercase tracking-[0.25em] mb-3" style={{ fontFamily: "'Bungee', sans-serif" }}>Display</div>
+                  <div className="space-y-3">
+                    <div className="game-setting-row flex items-center justify-between p-5">
+                      <div>
+                        <label className="game-label text-sm" style={{ fontFamily: "'Bungee', sans-serif" }}>Captions</label>
+                        <p className="game-text-muted mt-1 text-xs">Show dialogue text over NPCs</p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={captionsEnabled}
+                          onChange={(e) => { playClickSound(); setCaptionsEnabled(e.target.checked); }}
+                        />
+                        <div className="game-toggle-track h-8 w-16 transition-colors after:absolute after:left-1 after:top-1 after:h-6 after:w-6 after:transition-transform after:content-[''] peer-checked:after:translate-x-8"></div>
+                      </label>
+                    </div>
+                    <div className="game-setting-row flex items-center justify-between p-5">
+                      <label className="game-label text-sm" style={{ fontFamily: "'Bungee', sans-serif" }}>Graphics Quality</label>
+                      <select className="game-select px-4 py-2 text-sm">
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                      </select>
+                    </div>
                   </div>
-                  <label className="relative inline-flex cursor-pointer items-center">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={captionsEnabled}
-                      onChange={(e) => {
-                        playClickSound();
-                        setCaptionsEnabled(e.target.checked);
-                      }}
-                    />
-                    <div className="game-toggle-track h-8 w-16 transition-colors after:absolute after:left-1 after:top-1 after:h-6 after:w-6 after:transition-transform after:content-[''] peer-checked:after:translate-x-8"></div>
-                  </label>
                 </div>
 
-                <div className="game-setting-row p-5">
-                  <label className="game-title mb-3 block text-sm tracking-[0.18em]">
-                    Graphics Quality
-                  </label>
-                  <select className="game-select w-full p-3 text-sm">
-                    <option>High</option>
-                    <option>Medium</option>
-                    <option>Low</option>
-                  </select>
-                </div>
-
-                <button
-                  onClick={() => {
-                    playClickSound();
-                    setShowShortcuts(true);
-                  }}
-                  className="game-button w-full px-5 py-4 text-left text-sm"
-                >
-                  Keyboard Shortcuts
-                </button>
-
-                <div className="game-setting-row p-5">
-                  <label className="game-title mb-1 block text-sm tracking-[0.18em]">
-                    Groq API Key
-                  </label>
-                  <p className="game-text-muted mb-3 text-xs">
-                    Optional — override the default key with your own.
-                  </p>
-                  <input
-                    type="password"
-                    className="game-input w-full p-3 text-sm"
-                    placeholder="gsk_..."
-                    value={userGroqKey}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setUserGroqKey(v);
-                      if (v) localStorage.setItem("userGroqKey", v);
-                      else localStorage.removeItem("userGroqKey");
-                    }}
-                  />
-                </div>
-
-                <div className="game-setting-row p-5">
-                  <label className="game-title mb-1 block text-sm tracking-[0.18em]">
-                    ElevenLabs API Key
-                  </label>
-                  <p className="game-text-muted mb-3 text-xs">
-                    Optional — override the default key with your own.
-                  </p>
-                  <input
-                    type="password"
-                    className="game-input w-full p-3 text-sm"
-                    placeholder="xi_..."
-                    value={userElevenLabsKey}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setUserElevenLabsKey(v);
-                      if (v) localStorage.setItem("userElevenLabsKey", v);
-                      else localStorage.removeItem("userElevenLabsKey");
-                    }}
-                  />
+                {/* API Keys */}
+                <div>
+                  <div className="game-text-muted text-xs uppercase tracking-[0.25em] mb-3" style={{ fontFamily: "'Bungee', sans-serif" }}>API Keys</div>
+                  <div className="space-y-3">
+                    <div className="game-setting-row p-5">
+                      <label className="game-label text-sm mb-2 block" style={{ fontFamily: "'Bungee', sans-serif" }}>Groq API Key</label>
+                      <input
+                        type="password"
+                        className="game-input w-full p-3 text-sm"
+                        placeholder="gsk_..."
+                        value={userGroqKey}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setUserGroqKey(v);
+                          if (v) localStorage.setItem("userGroqKey", v);
+                          else localStorage.removeItem("userGroqKey");
+                        }}
+                      />
+                    </div>
+                    <div className="game-setting-row p-5">
+                      <label className="game-label text-sm mb-2 block" style={{ fontFamily: "'Bungee', sans-serif" }}>ElevenLabs API Key</label>
+                      <input
+                        type="password"
+                        className="game-input w-full p-3 text-sm"
+                        placeholder="xi_..."
+                        value={userElevenLabsKey}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setUserElevenLabsKey(v);
+                          if (v) localStorage.setItem("userElevenLabsKey", v);
+                          else localStorage.removeItem("userElevenLabsKey");
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <footer className="game-menu-footer flex items-center justify-between border-t px-6 py-5">
+              <footer className="flex items-center justify-end border-t px-6 py-5" style={{ borderColor: 'var(--game-border)' }}>
                 <button
-                  onClick={() => {
-                    playClickSound();
-                    setIsSettingsOpen(false);
-                    setOnboardingStep("levels");
-                  }}
-                  className="game-button px-4 py-2 text-xs"
-                >
-                  Back to Levels
-                </button>
-                <button
-                  onClick={() => {
-                    playClickSound();
-                    setIsSettingsOpen(false);
-                  }}
-                  className="game-button-primary px-8 py-3 text-sm"
+                  onClick={() => { playClickSound(); setIsSettingsOpen(false); }}
+                  className="game-button-primary px-10 py-3 text-sm"
                 >
                   Resume
                 </button>
@@ -1596,88 +1583,116 @@ export default function App() {
       {radioOpen && (
         <div className="game-overlay absolute inset-0 z-50 flex items-center justify-center p-4 pointer-events-auto" onClick={() => setRadioOpen(false)}>
           <div
-            className="game-menu-shell p-6 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200"
-            style={{ border: '2px solid var(--game-border)' }}
+            className="game-menu-shell p-0 w-full max-w-lg shadow-2xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+            style={{ border: '2px solid var(--game-border)', borderRadius: '16px' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
+            {/* Header bar */}
+            <div className="flex items-center justify-between px-5 py-3" style={{ background: 'linear-gradient(180deg, #4a2c14 0%, #3a2010 100%)', borderBottom: '1px solid var(--game-border)' }}>
               <div className="flex items-center gap-2">
-                <Radio size={22} style={{ color: 'var(--game-accent)' }} />
-                <span className="game-title text-xl">Pawn Radio</span>
+                <Music size={18} style={{ color: 'var(--game-accent)' }} />
+                <span className="text-sm font-bold tracking-wide" style={{ color: 'var(--game-accent)', fontFamily: 'Bungee' }}>ElevenLabs Music Radio</span>
               </div>
-              <button onClick={() => setRadioOpen(false)} className="game-icon-button p-1.5 rounded">
-                <X size={18} />
+              <button onClick={() => setRadioOpen(false)} className="game-icon-button p-1 rounded">
+                <X size={16} />
               </button>
             </div>
 
-            {/* Track display */}
-            <div className="rounded-xl p-4 mb-4 text-center" style={{ background: 'var(--game-bg-1)', border: '1px solid var(--game-border)' }}>
-              <div className="game-text-dim text-xs mb-1" style={{ fontFamily: 'Bungee' }}>NOW PLAYING</div>
-              <div className="text-lg font-bold" style={{ color: 'var(--game-accent)', fontFamily: 'Bungee' }}>
-                {radioPlaying ? RADIO_TRACKS[radioTrack].name : "— Off —"}
+            {/* Now playing display */}
+            <div className="px-5 py-4" style={{ background: 'var(--game-bg-1)' }}>
+              <div className="flex items-center gap-4">
+                {/* Album art placeholder */}
+                <div className="flex-shrink-0 w-16 h-16 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #5a3b22 0%, #2a180c 100%)', border: '1px solid var(--game-border)' }}>
+                  {radioPlaying ? (
+                    <span className="flex items-end gap-[3px] h-8">
+                      <span className="w-[4px] rounded-full animate-pulse" style={{ background: 'var(--game-accent)', height: '60%', animationDelay: '0ms' }} />
+                      <span className="w-[4px] rounded-full animate-pulse" style={{ background: 'var(--game-accent)', height: '100%', animationDelay: '150ms' }} />
+                      <span className="w-[4px] rounded-full animate-pulse" style={{ background: 'var(--game-accent)', height: '40%', animationDelay: '300ms' }} />
+                      <span className="w-[4px] rounded-full animate-pulse" style={{ background: 'var(--game-accent)', height: '80%', animationDelay: '100ms' }} />
+                    </span>
+                  ) : (
+                    <Music size={24} style={{ color: 'var(--game-text-dim)' }} />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs mb-1" style={{ color: 'var(--game-text-dim)' }}>NOW PLAYING</div>
+                  <div className="text-base font-bold truncate" style={{ color: radioPlaying ? 'var(--game-accent)' : 'var(--game-text-muted)', fontFamily: 'Bungee' }}>
+                    {radioPlaying ? RADIO_TRACKS[radioTrack].name : "— Paused —"}
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: 'var(--game-text-dim)' }}>Track {radioTrack + 1} of {RADIO_TRACKS.length}</div>
+                </div>
               </div>
-              <div className="game-text-dim text-xs mt-1">Track {radioTrack + 1} / {RADIO_TRACKS.length}</div>
-            </div>
 
-            {/* Controls */}
-            <div className="flex items-center justify-center gap-4 mb-5">
-              <button
-                onClick={() => { playClickSound(); radioPlaying ? radioPause() : radioPlay(); }}
-                className="game-button-primary p-4 rounded-full transition-all duration-150 hover:scale-110 active:scale-90"
-              >
-                {radioPlaying ? <PauseIcon size={28} /> : <Play size={28} />}
-              </button>
-              <button
-                onClick={() => { playClickSound(); radioSkip(); }}
-                className="game-button p-3 rounded-full transition-all duration-150 hover:scale-110 active:scale-90"
-              >
-                <SkipForward size={22} />
-              </button>
-            </div>
+              {/* Controls row */}
+              <div className="flex items-center justify-center gap-5 mt-4">
+                <button
+                  onClick={() => { playClickSound(); const prev = (radioTrack - 1 + RADIO_TRACKS.length) % RADIO_TRACKS.length; radioPlay(prev); }}
+                  className="game-button p-2.5 rounded-full transition-all duration-100 hover:scale-110 active:scale-90"
+                >
+                  <SkipForward size={18} style={{ transform: 'rotate(180deg)' }} />
+                </button>
+                <button
+                  onClick={() => { playClickSound(); radioPlaying ? radioPause() : radioPlay(); }}
+                  className="game-button-primary p-4 rounded-full transition-all duration-100 hover:scale-110 active:scale-90"
+                >
+                  {radioPlaying ? <PauseIcon size={26} /> : <Play size={26} />}
+                </button>
+                <button
+                  onClick={() => { playClickSound(); radioSkip(); }}
+                  className="game-button p-2.5 rounded-full transition-all duration-100 hover:scale-110 active:scale-90"
+                >
+                  <SkipForward size={18} />
+                </button>
+              </div>
 
-            {/* Volume */}
-            <div className="flex items-center gap-3 mb-4">
-              <Volume2 size={18} style={{ color: 'var(--game-text-dim)' }} />
-              <input
-                type="range"
-                min={0} max={1} step={0.05}
-                value={radioVolume}
-                onChange={(e) => radioSetVol(parseFloat(e.target.value))}
-                className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
-                style={{ accentColor: 'var(--game-accent)', background: 'var(--game-surface-raised)' }}
-              />
-              <span className="text-xs w-8 text-right" style={{ color: 'var(--game-text-muted)', fontFamily: 'Bungee' }}>
-                {Math.round(radioVolume * 100)}
-              </span>
+              {/* Volume */}
+              <div className="flex items-center gap-3 mt-4">
+                <Volume2 size={16} style={{ color: 'var(--game-text-dim)' }} />
+                <input
+                  type="range"
+                  min={0} max={1} step={0.05}
+                  value={radioVolume}
+                  onChange={(e) => radioSetVol(parseFloat(e.target.value))}
+                  className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
+                  style={{ accentColor: 'var(--game-accent)', background: 'var(--game-surface-raised)' }}
+                />
+                <span className="text-xs w-8 text-right" style={{ color: 'var(--game-text-muted)', fontFamily: 'Bungee' }}>
+                  {Math.round(radioVolume * 100)}
+                </span>
+              </div>
             </div>
 
             {/* Track list */}
-            <div className="flex flex-col gap-1">
+            <div className="px-3 py-2" style={{ background: 'var(--game-surface)', borderTop: '1px solid rgba(213,162,77,0.2)' }}>
               {RADIO_TRACKS.map((t, i) => (
                 <button
                   key={i}
                   onClick={() => { playClickSound(); radioPlay(i); }}
-                  className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-100 hover:bg-white/5 text-left"
-                  style={i === radioTrack && radioPlaying ? { background: 'rgba(213,162,77,0.15)', border: '1px solid var(--game-border)' } : { border: '1px solid transparent' }}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg transition-all duration-100 text-left"
+                  style={i === radioTrack && radioPlaying
+                    ? { background: 'rgba(213,162,77,0.12)', border: '1px solid var(--game-border)' }
+                    : { border: '1px solid transparent' }}
+                  onMouseEnter={(e) => { if (!(i === radioTrack && radioPlaying)) (e.currentTarget.style.background = 'rgba(255,255,255,0.04)'); }}
+                  onMouseLeave={(e) => { if (!(i === radioTrack && radioPlaying)) (e.currentTarget.style.background = 'transparent'); }}
                 >
                   <span className="w-5 text-center text-xs" style={{ color: 'var(--game-text-dim)', fontFamily: 'Bungee' }}>{i + 1}</span>
-                  <span className="flex-1 text-sm" style={{ color: i === radioTrack && radioPlaying ? 'var(--game-accent)' : 'var(--game-text)', fontFamily: 'Bungee' }}>
+                  <span className="flex-1 text-sm truncate" style={{ color: i === radioTrack && radioPlaying ? 'var(--game-accent)' : 'var(--game-text)', fontFamily: 'Bungee' }}>
                     {t.name}
                   </span>
                   {i === radioTrack && radioPlaying && (
-                    <span className="flex gap-0.5">
-                      <span className="w-1 h-3 rounded-full animate-pulse" style={{ background: 'var(--game-accent)', animationDelay: '0ms' }} />
-                      <span className="w-1 h-4 rounded-full animate-pulse" style={{ background: 'var(--game-accent)', animationDelay: '150ms' }} />
-                      <span className="w-1 h-2 rounded-full animate-pulse" style={{ background: 'var(--game-accent)', animationDelay: '300ms' }} />
+                    <span className="flex items-end gap-[2px] h-4">
+                      <span className="w-[3px] rounded-full animate-pulse" style={{ background: 'var(--game-accent)', height: '50%', animationDelay: '0ms' }} />
+                      <span className="w-[3px] rounded-full animate-pulse" style={{ background: 'var(--game-accent)', height: '100%', animationDelay: '150ms' }} />
+                      <span className="w-[3px] rounded-full animate-pulse" style={{ background: 'var(--game-accent)', height: '30%', animationDelay: '300ms' }} />
                     </span>
                   )}
                 </button>
               ))}
             </div>
 
-            <div className="mt-3 text-center">
-              <span className="game-text-dim text-[10px]" style={{ fontFamily: 'Bungee' }}>♪ MADE WITH ELEVENLABS ♪</span>
+            {/* Footer */}
+            <div className="px-5 py-2 text-center" style={{ background: 'var(--game-bg-1)', borderTop: '1px solid rgba(213,162,77,0.15)' }}>
+              <span className="text-[10px]" style={{ color: 'var(--game-text-dim)' }}>♪ Powered by ElevenLabs ♪</span>
             </div>
           </div>
         </div>
@@ -2430,6 +2445,7 @@ export default function App() {
               isLeaving={obj.isLeaving}
               targetPos={obj.position}
               currentLine={obj.currentLine}
+              voiceDuration={obj.voiceDuration}
               captionsEnabled={captionsEnabled}
             />
           ))}

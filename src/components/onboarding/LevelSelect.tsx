@@ -1,131 +1,115 @@
+import { useState, useEffect } from "react";
+
 type Props = {
   playerName: string;
   onSelectLevel: (level: number) => void;
 };
 
-const LEVELS = [
-  { num: 1, title: "Rookie Dealer" },
-  { num: 2, title: "Street Hustler" },
-  { num: 3, title: "Sharp Eye" },
-  { num: 4, title: "Master Dealer" },
-  { num: 5, title: "Pawn King" },
-];
+const LEVEL_TITLES: Record<number, string> = {
+  1: "Rookie Dealer",
+  2: "Street Hustler",
+  3: "Sharp Eye",
+  4: "Master Dealer",
+  5: "Pawn King",
+};
 
 export function LevelSelect({ playerName, onSelectLevel }: Props) {
   const saved = localStorage.getItem(`pawn-level-${playerName}`);
-  const unlockedLevel = saved ? Math.min(parseInt(saved, 10) || 1, 5) : 1;
+  const level = saved ? Math.min(parseInt(saved, 10) || 1, 5) : 1;
+  const title = LEVEL_TITLES[level] ?? "Rookie Dealer";
+
+  // 0=hidden, 1=number breaks in (centered), 2=number slides up + rest appears
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setPhase(1), 100);
+    const t2 = setTimeout(() => setPhase(2), 1800);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
 
   return (
     <section
-      className="relative min-h-screen overflow-hidden bg-cover bg-center flex flex-col items-center justify-center"
+      className="relative min-h-screen overflow-hidden bg-cover bg-center"
       style={{ backgroundImage: "url('/level-bg.webp')", backgroundColor: "var(--game-bg-0)" }}
     >
       <div className="absolute inset-0 bg-black/60" />
 
-      <div className="relative z-10 flex flex-col items-center justify-center w-full px-6 max-w-3xl text-center">
-        <h1
-          className="uppercase leading-none mb-3 select-none"
+      {/* Level number — absolutely centered, then slides up */}
+      <div
+        className="absolute inset-0 z-10 flex items-center justify-center select-none pointer-events-none"
+        style={{
+          transform: phase >= 2 ? "translateY(-30vh)" : "translateY(0)",
+          transition: "transform 0.9s cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      >
+        <div
           style={{
-            fontFamily: "'Bungee Shade', 'Impact', cursive",
-            fontSize: "clamp(1.8rem, 5vw, 3.5rem)",
+            fontFamily: "'Quantico', 'Impact', sans-serif",
+            fontSize: "clamp(7rem, 22vw, 16rem)",
             color: "var(--game-accent)",
-            textShadow: "0 0 40px rgba(255,204,77,0.5), 0 6px 20px rgba(0,0,0,0.9), 0 0 80px rgba(255,179,0,0.2)",
-            letterSpacing: "0.04em",
-            lineHeight: 1.15,
+            textShadow: "0 0 60px rgba(255,204,77,0.6), 0 8px 30px rgba(0,0,0,0.9), 0 0 120px rgba(255,179,0,0.3)",
+            lineHeight: 1,
+            opacity: phase >= 1 ? 1 : 0,
+            transform: phase >= 2 ? "scale(0.5)" : phase >= 1 ? "scale(1)" : "scale(3)",
+            transition: "transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease",
           }}
         >
-          Choose Your Challenge
-        </h1>
+          <span style={{ fontSize: "0.5em", verticalAlign: "middle", color: "var(--game-text-muted)" }}>★</span> Lv. {level} <span style={{ fontSize: "0.5em", verticalAlign: "middle", color: "var(--game-text-muted)" }}>★</span>
+        </div>
+      </div>
 
-        <p
-          className="uppercase tracking-[0.3em] mb-12 select-none"
+      {/* Content that fades in after number moves up */}
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pt-24">
+        {/* Level label */}
+        <span
+          className="uppercase tracking-[0.4em] mb-4 select-none"
           style={{
             fontFamily: "'Bungee', 'Arial Black', sans-serif",
-            fontSize: "clamp(0.55rem, 1.4vw, 0.8rem)",
+            fontSize: "clamp(0.55rem, 1.3vw, 0.75rem)",
             color: "var(--game-text-muted)",
             textShadow: "0 2px 8px rgba(0,0,0,0.7)",
+            opacity: phase >= 2 ? 1 : 0,
+            transform: phase >= 2 ? "translateY(0)" : "translateY(10px)",
+            transition: "all 0.5s ease",
           }}
         >
-          Welcome back, {playerName}
+          Level — {title}
+        </span>
+
+        {/* Welcome message */}
+        <p
+          className="select-none mb-12"
+          style={{
+            fontFamily: "'Dancing Script', cursive",
+            fontSize: "clamp(2rem, 5vw, 3.2rem)",
+            color: "var(--game-text-muted)",
+            textShadow: "0 2px 8px rgba(0,0,0,0.7)",
+            opacity: phase >= 2 ? 1 : 0,
+            transform: phase >= 2 ? "translateY(0)" : "translateY(10px)",
+            transition: "all 0.5s ease 0.2s",
+          }}
+        >
+          Welcome {title}, {playerName}
         </p>
 
-        {/* Level circles */}
-        <div className="flex items-center justify-center gap-4 sm:gap-6 mb-14 flex-wrap">
-          {LEVELS.map(l => {
-            const unlocked = l.num <= unlockedLevel;
-            const isCurrent = l.num === unlockedLevel;
-
-            return (
-              <div key={l.num} className="flex flex-col items-center gap-2">
-                <button
-                  disabled={!unlocked}
-                  onClick={() => onSelectLevel(l.num)}
-                  className="relative rounded-full flex items-center justify-center transition-all duration-200"
-                  style={{
-                    width: "clamp(64px, 14vw, 96px)",
-                    height: "clamp(64px, 14vw, 96px)",
-                    fontFamily: "'Bungee', 'Arial Black', sans-serif",
-                    fontSize: "clamp(1.5rem, 4vw, 2.5rem)",
-                    cursor: unlocked ? "pointer" : "not-allowed",
-                    ...(isCurrent
-                      ? {
-                          background: "linear-gradient(145deg, #ffcc4d, #ffb300, #ffd877)",
-                          color: "var(--game-bg-0)",
-                          border: "4px solid var(--game-border-strong)",
-                          boxShadow: "0 0 25px rgba(255,204,77,0.6), 0 0 60px rgba(255,179,0,0.3), inset 0 2px 4px rgba(255,255,255,0.3)",
-                          transform: "scale(1.1)",
-                        }
-                      : unlocked
-                        ? {
-                            background: "linear-gradient(145deg, var(--game-surface-raised), var(--game-surface-panel))",
-                            color: "var(--game-text)",
-                            border: "3px solid var(--game-border)",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-                          }
-                        : {
-                            background: "var(--game-surface)",
-                            color: "var(--game-text-dim)",
-                            border: "3px solid rgba(100,70,40,0.3)",
-                            opacity: 0.35,
-                            filter: "grayscale(1)",
-                          }),
-                  }}
-                >
-                  {unlocked ? l.num : "🔒"}
-                  {isCurrent && (
-                    <span
-                      className="absolute inset-0 rounded-full animate-ping"
-                      style={{ border: "2px solid var(--game-accent)", opacity: 0.3 }}
-                    />
-                  )}
-                </button>
-                <span
-                  className="uppercase tracking-wider select-none"
-                  style={{
-                    fontFamily: "'Bungee', 'Arial Black', sans-serif",
-                    fontSize: "clamp(0.45rem, 1.1vw, 0.6rem)",
-                    color: isCurrent ? "var(--game-accent)" : unlocked ? "var(--game-text-muted)" : "var(--game-text-dim)",
-                    opacity: unlocked ? 1 : 0.35,
-                  }}
-                >
-                  {l.title}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Start button */}
+        {/* Continue button */}
         <button
           className="game-button-primary uppercase tracking-[0.15em] px-14 py-5"
           style={{
             fontFamily: "'Bungee', 'Arial Black', sans-serif",
             fontSize: "clamp(1.1rem, 2.5vw, 1.5rem)",
             boxShadow: "0 0 20px rgba(255,204,77,0.3), 0 6px 20px rgba(0,0,0,0.5)",
+            opacity: phase >= 2 ? 1 : 0,
+            transform: phase >= 2 ? "translateY(0)" : "translateY(15px)",
+            transition: "all 0.5s ease 0.4s",
           }}
-          onClick={() => onSelectLevel(unlockedLevel)}
+          onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px) scale(1.04)"; e.currentTarget.style.boxShadow = "0 0 30px rgba(255,204,77,0.5), 0 8px 25px rgba(0,0,0,0.6)"; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = "translateY(0) scale(1)"; e.currentTarget.style.boxShadow = "0 0 20px rgba(255,204,77,0.3), 0 6px 20px rgba(0,0,0,0.5)"; }}
+          onMouseDown={e => { e.currentTarget.style.transform = "translateY(2px) scale(0.97)"; }}
+          onMouseUp={e => { e.currentTarget.style.transform = "translateY(-2px) scale(1.04)"; }}
+          onClick={() => { new Audio("/sfx/click.mp3").play().catch(() => {}); onSelectLevel(level); }}
         >
-          Start Your Journey
+          Continue Your Journey
         </button>
       </div>
     </section>
