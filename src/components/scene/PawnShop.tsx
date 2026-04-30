@@ -193,7 +193,7 @@ function Counter({ position }: { position: [number, number, number] }) {
         castShadow
         receiveShadow
       >
-        <meshStandardMaterial map={tableTex} roughness={0.6} />
+        <meshStandardMaterial map={tableTex} roughness={0.9} />
       </Box>
 
       {/* Front panels */}
@@ -203,7 +203,7 @@ function Counter({ position }: { position: [number, number, number] }) {
           args={[0.5, 0.9, 0.05]}
           position={[-1.25 + i * 0.5, 0.55, 0.52]}
         >
-          <meshStandardMaterial map={tableTex} roughness={0.7} />
+          <meshStandardMaterial map={tableTex} roughness={0.9} />
         </Box>
       ))}
 
@@ -214,7 +214,7 @@ function Counter({ position }: { position: [number, number, number] }) {
         receiveShadow
         castShadow
       >
-        <meshStandardMaterial map={tableTex} roughness={0.4} />
+        <meshStandardMaterial map={tableTex} roughness={0.95} metalness={0} />
       </Box>
 
       {/* Fun glass display with bright contents */}
