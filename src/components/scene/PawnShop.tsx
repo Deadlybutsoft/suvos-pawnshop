@@ -216,30 +216,6 @@ function Counter({ position }: { position: [number, number, number] }) {
       >
         <meshStandardMaterial map={tableTex} roughness={0.95} metalness={0} />
       </Box>
-
-      {/* Fun glass display with bright contents */}
-      <Box args={[1.8, 0.4, 0.8]} position={[1.0, 0.9, 0]}>
-        <meshStandardMaterial
-          transparent
-          opacity={0.3}
-          color="#bae6fd"
-          roughness={0}
-        />
-      </Box>
-
-      {/* Decorative items on counter */}
-      {/* Pink Jewel */}
-      <Sphere args={[0.08, 8, 8]} position={[-0.5, 1.25, 0.2]} castShadow>
-        <meshStandardMaterial
-          color="#f472b6"
-          emissive="#f472b6"
-          emissiveIntensity={0.2}
-        />
-      </Sphere>
-      {/* Green Box */}
-      <Box args={[0.2, 0.1, 0.2]} position={[-0.2, 1.19, 0.1]} castShadow>
-        <meshStandardMaterial color="#4ade80" />
-      </Box>
     </group>
   );
 }

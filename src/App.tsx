@@ -152,6 +152,10 @@ export default function App() {
 
   // Game over state
   const [gameOver, setGameOver] = useState<{ reason: string } | null>(null);
+  const [levelComplete, setLevelComplete] = useState(false);
+
+  // Play fanfare when level completes
+  useEffect(() => { if (levelComplete) playSfx("levelup"); }, [levelComplete]);
 
   // Expert calling state
   const [activeCall, setActiveCall] = useState<{ contact: string; status: "ringing" | "connected" | "unavailable" | "ended"; messages: { role: "user" | "assistant"; content: string }[]; fee: number } | null>(null);
@@ -327,34 +331,111 @@ export default function App() {
     }
   }, [groqKey]);
 
-  const playClickSound = () => {
+  const playClickSound = () => { playSfx("click"); };
+
+  // ElevenLabs Sound Effects — generated once, cached in memory
+  const sfxCacheRef = useRef<Record<string, string>>({});
+  const sfxLoadingRef = useRef<Record<string, boolean>>({});
+
+  const SFX_PROMPTS: Record<string, { text: string; duration: number }> = {
+    click: { text: "Short snappy UI button click, game menu", duration: 0.5 },
+    door: { text: "Old wooden door creaking open slowly in a shop", duration: 1.5 },
+    bell: { text: "Small shop door bell ringing, two bright dings", duration: 1 },
+    deal: { text: "Cash register cha-ching, coins and money", duration: 1 },
+    phone: { text: "Old telephone ringing tone, two rings", duration: 1.5 },
+    error: { text: "Game over buzzer, low harsh alarm sound", duration: 1 },
+    levelup: { text: "Victory fanfare, short triumphant brass jingle, game level complete", duration: 2 },
+  };
+
+  const playSfx = async (type: string) => {
+    // If cached, play immediately
+    if (sfxCacheRef.current[type]) {
+      const a = new Audio(sfxCacheRef.current[type]);
+      a.volume = 0.5;
+      a.play().catch(() => {});
+      return;
+    }
+    if (!elevenLabsKey) { playSfxFallback(type); return; }
+    if (sfxLoadingRef.current[type]) { playSfxFallback(type); return; }
+
+    sfxLoadingRef.current[type] = true;
+    playSfxFallback(type); // instant fallback while ElevenLabs generates
     try {
-      const AudioContext =
-        window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContext) {
-        const ctx = new AudioContext();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.05);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.05);
+      const prompt = (SFX_PROMPTS as any)[type];
+      if (!prompt) return;
+      const res = await fetch("https://api.elevenlabs.io/v1/sound-generation", {
+        method: "POST",
+        headers: { "xi-api-key": elevenLabsKey, "Content-Type": "application/json" },
+        body: JSON.stringify({ text: prompt.text, duration_seconds: prompt.duration }),
+      });
+      if (!res.ok) throw new Error(`SFX error: ${res.status}`);
+      const blob = await res.blob();
+      sfxCacheRef.current[type] = URL.createObjectURL(blob);
+    } catch (e) {
+      console.warn("ElevenLabs SFX failed:", e);
+    } finally {
+      sfxLoadingRef.current[type] = false;
+    }
+  };
+
+  const playSfxFallback = (type: string) => {
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AC) return;
+      const ctx = new AC(); const t = ctx.currentTime;
+      if (type === "click") {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = "sine"; o.frequency.setValueAtTime(800, t); o.frequency.exponentialRampToValueAtTime(300, t + 0.05);
+        g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t + 0.05);
+      } else if (type === "door") {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = "sawtooth"; o.frequency.setValueAtTime(80, t); o.frequency.linearRampToValueAtTime(60, t + 0.4);
+        g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t + 0.4);
+      } else if (type === "deal") {
+        [0, 0.08, 0.16].forEach((d, i) => {
+          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
+          o.frequency.setValueAtTime([1200, 1500, 1800][i], t + d);
+          g.gain.setValueAtTime(0.12, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.12);
+          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.12);
+        });
+      } else if (type === "bell") {
+        [0, 0.15].forEach((d, i) => {
+          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
+          o.frequency.setValueAtTime(i === 0 ? 2200 : 1800, t + d);
+          g.gain.setValueAtTime(0.08, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.3);
+          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.3);
+        });
+      } else if (type === "phone") {
+        [0, 0.2, 0.4, 0.6].forEach((d, i) => {
+          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
+          o.frequency.setValueAtTime(i % 2 === 0 ? 440 : 480, t + d);
+          g.gain.setValueAtTime(0.06, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.15);
+          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.15);
+        });
+      } else if (type === "error") {
+        const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "square";
+        o.frequency.setValueAtTime(150, t);
+        g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        o.connect(g); g.connect(ctx.destination); o.start(); o.stop(t + 0.3);
+      } else if (type === "levelup") {
+        [0, 0.12, 0.24, 0.36].forEach((d, i) => {
+          const o = ctx.createOscillator(); const g = ctx.createGain(); o.type = "sine";
+          o.frequency.setValueAtTime([523, 659, 784, 1047][i], t + d);
+          g.gain.setValueAtTime(0.1, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.2);
+          o.connect(g); g.connect(ctx.destination); o.start(t + d); o.stop(t + d + 0.2);
+        });
       }
     } catch (e) {}
   };
 
-  const speakText = async (text: string) => {
+  const speakText = async (text: string, voiceId = "JBFqnCBsd6RMkjVDRZzb") => {
     if (!elevenLabsKey) {
       console.warn("No ElevenLabs API key set, skipping TTS");
       return;
     }
     try {
-      const voiceId = "JBFqnCBsd6RMkjVDRZzb"; // default male voice
       const res = await fetch(
         `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
         {
@@ -378,6 +459,32 @@ export default function App() {
       }
     }
   };
+
+  // Voice mapping: NPC personality id → ElevenLabs voice id
+  // Male voices: George, Charlie, James, Callum, Daniel, Liam, Bill
+  // Female voices: Sarah, Charlotte, Alice, Lily, Aria, Jessica
+  const NPC_VOICES: Record<string, string> = {
+    s1: "JBFqnCBsd6RMkjVDRZzb", // George — angry male seller
+    s2: "XB0fDUnXU5powFXDhCwa", // Charlotte — forgetful female seller
+    s3: "IKne3meq5aSn9XLyUdCD", // Charlie — funny male seller
+    s4: "Xb7hH8MSUJpSbSDYk0k2", // Alice — paranoid female seller
+    s5: "iP95p4xoKVk53GoZ742B", // Callum — snobby male seller
+    s6: "cgSgspJ2msm6clMCkdW9", // Jessica — romantic female seller
+    s7: "onwK4e9ZLuTAKqWW03F9", // Daniel — confused male seller
+    b1: "N2lVS1w4EtoT3dr4eOWO", // James — grumpy male buyer
+    b2: "pFZP5JQG7iQjIQuC4Bku", // Lily — cheerful female buyer
+    b3: "TX3LPaxmHKxFdv7VOQHJ", // Liam — suspicious male buyer
+    b4: "XB0fDUnXU5powFXDhCwa", // Charlotte — impatient female buyer
+    c1: "JBFqnCBsd6RMkjVDRZzb", // George — wealthy male collector
+    c2: "cgSgspJ2msm6clMCkdW9", // Jessica — picky female collector
+  };
+  const EXPERT_VOICES: Record<string, string> = {
+    "Dr. Harrison": "N2lVS1w4EtoT3dr4eOWO", // James — deep authoritative
+    "Prof. Miller": "onwK4e9ZLuTAKqWW03F9", // Daniel — scholarly
+    "Mr. Vance": "iP95p4xoKVk53GoZ742B", // Callum — refined executive
+  };
+
+  const getVoiceForNPC = (npcId: string) => NPC_VOICES[npcId] || "JBFqnCBsd6RMkjVDRZzb";
 
   const spawnNPC = (specificType?: NPCType) => {
     if (activeNPCs.length >= 2) return;
@@ -452,6 +559,8 @@ export default function App() {
 
     // Open door for NPC entry, close after they walk through
     setDoorOpen(true);
+    playSfx("door");
+    setTimeout(() => playSfx("bell"), 300);
     setTimeout(() => setDoorOpen(false), 2500);
 
     // Initial greeting after walk
@@ -488,6 +597,7 @@ export default function App() {
         isDealAction = true;
         dealAmount = parseFloat(dealMatch[1]);
         text = text.replace(/\[ACTION:\s*DEAL\s*\$[\d.]+\]/gi, "").trim();
+        playSfx("deal");
 
         // Update money
         setMoney((prev) => {
@@ -526,16 +636,16 @@ export default function App() {
 
           // If bought stolen goods — random chance police catch you
           if (si?.isStolen && Math.random() < 0.5) {
-            setTimeout(() => setGameOver({ reason: "You purchased stolen property! The police traced the item back to your shop." }), 2000);
+            setTimeout(() => { playSfx("error"); setGameOver({ reason: "You purchased stolen property! The police traced the item back to your shop." }); }, 2000);
           }
         } else if (npcObj.npc.type === "BUYER" || npcObj.npc.type === "COLLECTOR") {
           // Check if the item being sold is fake or stolen — GAME OVER
           const soldItem = inventory.find(i => i.name === npcObj.item);
           if (soldItem && soldItem.isAuthentic === false) {
-            setTimeout(() => setGameOver({ reason: `You sold a COUNTERFEIT "${npcObj.item}" to a customer. The fraud was discovered and you've been arrested!` }), 2000);
+            setTimeout(() => { playSfx("error"); setGameOver({ reason: `You sold a COUNTERFEIT "${npcObj.item}" to a customer. The fraud was discovered and you've been arrested!` }); }, 2000);
           }
           if (soldItem && soldItem.isStolen === true) {
-            setTimeout(() => setGameOver({ reason: `You sold STOLEN property "${npcObj.item}". The buyer reported it and police traced it to your shop!` }), 2000);
+            setTimeout(() => { playSfx("error"); setGameOver({ reason: `You sold STOLEN property "${npcObj.item}". The buyer reported it and police traced it to your shop!` }); }, 2000);
           }
           setInventory(prev => {
             const idx = prev.findIndex(i => i.name === npcObj.item);
@@ -564,7 +674,7 @@ export default function App() {
       );
 
       if (text) {
-        speakText(text);
+        speakText(text, getVoiceForNPC(npcObj.npc.id));
       }
 
       if (isLeavingAction) {
@@ -654,6 +764,7 @@ export default function App() {
       prev.map((n) => (n.id === id ? { ...n, isLeaving: true } : n)),
     );
     setDoorOpen(true);
+    playSfx("door");
     setTimeout(() => setDoorOpen(false), 2500);
     setTimeout(() => {
       setActiveNPCs((prev) => prev.filter((n) => n.id !== id));
@@ -664,6 +775,7 @@ export default function App() {
   // Expert calling system
   const callExpert = async (contactName: string, role: string, fee: number) => {
     setActiveCall({ contact: contactName, status: "ringing", messages: [], fee });
+    playSfx("phone");
 
     // Simulate ring for 2 seconds
     await new Promise(r => setTimeout(r, 2000));
@@ -700,7 +812,7 @@ export default function App() {
         });
         const text = completion.choices[0]?.message?.content || "Hello, what can I help with?";
         setActiveCall(prev => prev ? { ...prev, messages: [{ role: "user", content: `About this ${itemName}...` }, { role: "assistant", content: text }] } : null);
-        speakText(text);
+        speakText(text, EXPERT_VOICES[contactName] || "JBFqnCBsd6RMkjVDRZzb");
       } catch (e) {
         console.error(e);
       }
@@ -727,7 +839,7 @@ export default function App() {
       });
       const text = completion.choices[0]?.message?.content || "";
       setActiveCall(prev => prev ? { ...prev, messages: [...updated, { role: "assistant", content: text }] } : null);
-      speakText(text);
+      speakText(text, EXPERT_VOICES[activeCall.contact] || "JBFqnCBsd6RMkjVDRZzb");
     } catch (e) {
       console.error(e);
     }
@@ -838,6 +950,16 @@ export default function App() {
                 <div className="game-menu-tab px-4 py-3 text-sm opacity-45">
                   Save Game
                 </div>
+                <button
+                  onClick={() => {
+                    playClickSound();
+                    setIsSettingsOpen(false);
+                    setOnboardingStep("levels");
+                  }}
+                  className="game-menu-tab w-full px-4 py-3 text-left text-sm"
+                >
+                  Back to Levels
+                </button>
               </nav>
 
               <div className="game-text-dim mt-auto pt-10 text-xs uppercase tracking-[0.2em]">
@@ -975,9 +1097,16 @@ export default function App() {
               </div>
 
               <footer className="game-menu-footer flex items-center justify-between border-t px-6 py-5">
-                <div className="game-text-dim text-xs font-bold uppercase tracking-[0.2em]">
-                  Press Esc to return
-                </div>
+                <button
+                  onClick={() => {
+                    playClickSound();
+                    setIsSettingsOpen(false);
+                    setOnboardingStep("levels");
+                  }}
+                  className="game-button px-4 py-2 text-xs"
+                >
+                  Back to Levels
+                </button>
                 <button
                   onClick={() => {
                     playClickSound();
@@ -1085,6 +1214,63 @@ export default function App() {
         </div>
       )}
 
+      {/* LEVEL COMPLETE */}
+      {levelComplete && (
+        <div className="game-overlay pointer-events-auto absolute inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.88)" }}>
+          <div className="w-full max-w-lg text-center animate-in fade-in zoom-in duration-300">
+            <div className="text-7xl mb-4">🏆</div>
+            <h2
+              className="uppercase mb-2 select-none"
+              style={{
+                fontFamily: "'Impact', 'Arial Black', sans-serif",
+                fontSize: "clamp(2.5rem, 6vw, 4rem)",
+                color: "var(--game-accent)",
+                textShadow: "0 0 30px rgba(255,204,77,0.5), 0 4px 12px rgba(0,0,0,0.8)",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Level Complete
+            </h2>
+            <p className="game-text-muted text-base mb-8 uppercase tracking-widest">Level {currentLevel} cleared</p>
+
+            <div
+              className="game-panel p-5 mb-8 text-left space-y-3 mx-auto max-w-xs"
+              style={{ border: "2px solid var(--game-border)" }}
+            >
+              <div className="flex justify-between"><span className="game-text-dim text-sm">Money</span><span className="game-text-accent font-bold">${money.toLocaleString()}</span></div>
+              <div className="flex justify-between"><span className="game-text-dim text-sm">Deals Made</span><span className="game-text-accent font-bold">{tradeHistory.length}</span></div>
+              <div className="flex justify-between"><span className="game-text-dim text-sm">Inventory Value</span><span className="game-text-accent font-bold">${inventory.reduce((s, i) => s + i.boughtFor, 0).toLocaleString()}</span></div>
+            </div>
+
+            <div className="flex flex-col gap-3 items-center">
+              {currentLevel < 5 && (
+                <button
+                  className="game-button-primary px-12 py-4 uppercase tracking-[0.2em] font-black"
+                  style={{ fontFamily: "'Impact', 'Arial Black', sans-serif", fontSize: "1.3rem" }}
+                  onClick={() => {
+                    const next = currentLevel + 1;
+                    localStorage.setItem(`pawn-level-${playerName}`, String(next));
+                    setLevelComplete(false);
+                    setOnboardingStep("levels");
+                  }}
+                >
+                  Next Level
+                </button>
+              )}
+              <button
+                className="game-button px-10 py-3 uppercase tracking-wider text-sm"
+                onClick={() => {
+                  setLevelComplete(false);
+                  setOnboardingStep("levels");
+                }}
+              >
+                Back to Levels
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* GAME OVER — JAILED */}
       {gameOver && (
         <div className="game-overlay pointer-events-auto absolute inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.92)" }}>
@@ -1098,7 +1284,7 @@ export default function App() {
                 <div className="flex justify-between"><span className="game-text-dim text-sm">Items Traded</span><span className="game-text-accent font-bold">{tradeHistory.length}</span></div>
                 <div className="flex justify-between"><span className="game-text-dim text-sm">Inventory Value</span><span className="game-text-accent font-bold">${inventory.reduce((s, i) => s + i.boughtFor, 0).toLocaleString()}</span></div>
               </div>
-              <button onClick={() => { setGameOver(null); setOnboardingStep("hero"); }} className="game-button-primary px-10 py-4 text-lg">
+              <button onClick={() => { setGameOver(null); setOnboardingStep("levels"); }} className="game-button-primary px-10 py-4 text-lg">
                 Try Again
               </button>
             </div>
@@ -2013,16 +2199,25 @@ export default function App() {
       {/* Item Box Modal */}
       {selectedItemBox && (
         <div
-          className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm pointer-events-auto"
+          className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm pointer-events-auto"
           onClick={() => setSelectedItemBox(null)}
         >
           <div
-            className="bg-[#1C1C1E] border border-white/10 rounded-3xl w-full max-w-sm overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-200"
+            className="w-full max-w-sm overflow-hidden flex flex-col rounded-2xl"
+            style={{
+              background: "linear-gradient(165deg, var(--game-surface) 0%, var(--game-bg-1) 100%)",
+              border: "3px solid var(--game-border)",
+              boxShadow: "0 0 40px rgba(213,162,77,0.2), 0 12px 40px rgba(0,0,0,0.7)",
+            }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative w-full aspect-square bg-[#2C2C2E] flex items-center justify-center p-4 border-b border-white/10">
+            <div
+              className="relative w-full aspect-square flex items-center justify-center p-6"
+              style={{ background: "var(--game-surface-raised)", borderBottom: "3px solid var(--game-border)" }}
+            >
               <div
-                className="absolute top-4 right-4 z-10 text-white/50 bg-black/50 p-2 rounded-full cursor-pointer hover:bg-white/20 hover:text-white transition-colors"
+                className="absolute top-3 right-3 z-10 p-2 rounded-full cursor-pointer transition-all duration-150 hover:scale-110"
+                style={{ background: "var(--game-surface)", color: "var(--game-text-dim)" }}
                 onClick={() => setSelectedItemBox(null)}
               >
                 <X size={20} />
@@ -2030,31 +2225,36 @@ export default function App() {
               <img
                 src={
                   selectedItemImage ||
-                  `https://placehold.co/600x600/1C1C1E/FFCC00?text=${encodeURIComponent(selectedItemBox.itemName)}`
+                  `https://placehold.co/600x600/3f2a1a/ffcc4d?text=${encodeURIComponent(selectedItemBox.itemName)}`
                 }
                 alt={selectedItemBox.itemName}
-                className="w-full h-full object-contain rounded-2xl drop-shadow-2xl"
+                className="w-full h-full object-contain rounded-xl"
+                style={{ filter: "drop-shadow(0 4px 20px rgba(0,0,0,0.5))" }}
                 onError={(e) => {
-                  // Fallback to placeholder if wikipedia image fails to load
-                  e.currentTarget.src = `https://placehold.co/600x600/1C1C1E/FFCC00?text=${encodeURIComponent(selectedItemBox.itemName)}`;
+                  e.currentTarget.src = `https://placehold.co/600x600/3f2a1a/ffcc4d?text=${encodeURIComponent(selectedItemBox.itemName)}`;
                 }}
               />
             </div>
             <div className="p-6">
-              <div className="text-sm font-bold text-[#FFCC00] uppercase tracking-wider mb-2">
+              <div
+                className="text-xs font-black uppercase tracking-[0.25em] mb-2"
+                style={{ color: "var(--game-accent)", fontFamily: "'Arial Black', 'Impact', sans-serif" }}
+              >
                 Item Inspection
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4 line-clamp-2">
+              <h3
+                className="text-2xl font-black uppercase tracking-wider mb-5 line-clamp-2"
+                style={{ color: "var(--game-text)", fontFamily: "'Impact', 'Arial Black', sans-serif" }}
+              >
                 {selectedItemBox.itemName}
               </h3>
-              <div className="flex gap-3 mt-4">
-                <button
-                  onClick={() => setSelectedItemBox(null)}
-                  className="flex-1 bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-xl transition-all active:scale-95"
-                >
-                  Close
-                </button>
-              </div>
+              <button
+                onClick={() => setSelectedItemBox(null)}
+                className="game-button w-full py-3 uppercase tracking-wider font-black"
+                style={{ fontFamily: "'Arial Black', 'Impact', sans-serif" }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
