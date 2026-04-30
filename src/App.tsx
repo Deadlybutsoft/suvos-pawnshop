@@ -40,6 +40,12 @@ import {
   Send,
   Package,
   Megaphone,
+  LayoutGrid,
+  Play,
+  Pause as PauseIcon,
+  SkipForward,
+  Volume2,
+  Radio,
 } from "lucide-react";
 import Groq from "groq-sdk";
 import {
@@ -131,6 +137,23 @@ export default function App() {
   );
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [doorOpen, setDoorOpen] = useState(false);
+  const [showHudConfig, setShowHudConfig] = useState(false);
+  const [hudButtons, setHudButtons] = useState({
+    inventory: true, phone: true, waitSeller: true, runAd: true, settings: true,
+  });
+
+  // Radio state
+  const [radioOpen, setRadioOpen] = useState(false);
+  const [radioPlaying, setRadioPlaying] = useState(false);
+  const [radioTrack, setRadioTrack] = useState(0);
+  const [radioVolume, setRadioVolume] = useState(0.5);
+  const radioRef = useRef<HTMLAudioElement | null>(null);
+  const RADIO_TRACKS = [
+    { name: "Jazz Lounge", file: "/music/jazz-lounge.mp3" },
+    { name: "Retro Blues", file: "/music/retro-blues.mp3" },
+    { name: "Acoustic Café", file: "/music/acoustic-cafe.mp3" },
+    { name: "Vintage Swing", file: "/music/vintage-swing.mp3" },
+  ];
 
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -339,6 +362,31 @@ export default function App() {
       a.volume = 0.5;
       a.play().catch(() => {});
     } catch (e) {}
+  };
+
+  // Radio controls
+  const radioPlay = (trackIdx?: number) => {
+    const idx = trackIdx ?? radioTrack;
+    if (radioRef.current) { radioRef.current.pause(); radioRef.current = null; }
+    const a = new Audio(RADIO_TRACKS[idx].file);
+    a.volume = radioVolume;
+    a.loop = true;
+    a.play().catch(() => {});
+    radioRef.current = a;
+    setRadioPlaying(true);
+    setRadioTrack(idx);
+  };
+  const radioPause = () => {
+    radioRef.current?.pause();
+    setRadioPlaying(false);
+  };
+  const radioSkip = () => {
+    const next = (radioTrack + 1) % RADIO_TRACKS.length;
+    radioPlay(next);
+  };
+  const radioSetVol = (v: number) => {
+    setRadioVolume(v);
+    if (radioRef.current) radioRef.current.volume = v;
   };
 
   const speakText = async (text: string, voiceId = "JBFqnCBsd6RMkjVDRZzb") => {
@@ -680,7 +728,27 @@ export default function App() {
           });
           if (!res.ok) throw new Error(`STT error: ${res.status}`);
           const data = await res.json();
-          if (data.text) setInputText(data.text);
+          if (data.text) {
+            setInputText(data.text);
+            // Auto-send after transcription
+            if (selectedNpcId) {
+              const msg = data.text.trim();
+              if (msg) {
+                setInputText("");
+                const obj = activeNPCs.find((n) => n.id === selectedNpcId);
+                if (obj) {
+                  setActiveNPCs((prev) =>
+                    prev.map((n) =>
+                      n.id === selectedNpcId
+                        ? { ...n, currentLine: "...", chatHistory: [...n.chatHistory, { role: "user", text: msg }] }
+                        : n,
+                    ),
+                  );
+                  triggerNPCResponse(selectedNpcId, msg, obj);
+                }
+              }
+            }
+          }
         } catch (e) {
           console.error("ElevenLabs STT failed:", e);
         }
@@ -856,16 +924,26 @@ export default function App() {
           ${money.toLocaleString()}
         </div>
 
-        <button
-          onClick={() => {
-            playClickSound();
-            setIsSettingsOpen(true);
-          }}
-          className="game-icon-button pointer-events-auto rounded-full p-3 shadow-lg transition-all duration-150"
-          aria-label="Settings"
-        >
-          <SettingsIcon size={28} />
-        </button>
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {/* HUD Config toggle */}
+          <button
+            onClick={() => { playClickSound(); setShowHudConfig(p => !p); }}
+            className="game-icon-button rounded-full p-3 shadow-lg transition-all duration-150"
+            aria-label="Toggle HUD buttons"
+            title="Show/Hide Buttons"
+          >
+            <LayoutGrid size={22} />
+          </button>
+          {hudButtons.settings && (
+            <button
+              onClick={() => { playClickSound(); setIsSettingsOpen(true); }}
+              className="game-icon-button rounded-full p-3 shadow-lg transition-all duration-150"
+              aria-label="Settings"
+            >
+              <SettingsIcon size={28} />
+            </button>
+          )}
+        </div>
       </div>
 
       {isSettingsOpen && (
@@ -1343,45 +1421,63 @@ export default function App() {
         </div>
       )}
 
-      {/* NPC Subtitles & Interaction */}
-      <div className="absolute bottom-8 left-0 w-full px-8 pointer-events-none flex flex-col items-center gap-4 z-10">
+      {/* NPC Interaction — inline chat bar */}
+      <div className="absolute bottom-8 left-0 w-full px-8 pointer-events-none flex flex-col items-center gap-3 z-10">
         {activeNPCs.map((n) => (
           <div
             key={n.id}
-            className="w-full max-w-2xl flex flex-col gap-2 pointer-events-auto items-center"
+            className="w-full max-w-2xl pointer-events-auto"
           >
             {!n.isLeaving && (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    playClickSound();
-                    setSelectedNpcId(n.id);
-                    setShowInput(true);
+              <div
+                className="flex items-center gap-2 rounded-2xl p-2"
+                style={{ background: 'linear-gradient(135deg, var(--game-surface) 0%, var(--game-surface-raised) 100%)', border: '2px solid var(--game-border)', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
+              >
+                <input
+                  type="text"
+                  value={selectedNpcId === n.id ? inputText : ''}
+                  onFocus={() => setSelectedNpcId(n.id)}
+                  onChange={(e) => { setSelectedNpcId(n.id); setInputText(e.target.value); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      setSelectedNpcId(n.id);
+                      handlePlayerSpeaks(n.id);
+                    }
                   }}
-                  className="game-button-primary px-4 py-2 text-sm transition-all duration-150 hover:scale-105 active:scale-90 active:opacity-75"
+                  className="game-input flex-1 px-4 py-2.5 text-sm rounded-xl"
+                  style={{ border: '1px solid var(--game-border)', background: 'var(--game-bg-1)' }}
+                  placeholder={`Talk to ${n.personality?.name || 'NPC'}...`}
+                />
+                {/* Send button */}
+                <button
+                  onClick={() => { playClickSound(); setSelectedNpcId(n.id); handlePlayerSpeaks(n.id); }}
+                  className="game-button-primary px-4 py-2.5 text-sm rounded-xl transition-all duration-150 hover:scale-105 active:scale-90"
+                  title="Send"
                 >
-                  Type Reply
+                  Send
                 </button>
+                {/* Mic button */}
                 <button
-                  onClick={() => {
-                    playClickSound();
-                    setSelectedNpcId(n.id);
-                    startListening();
-                  }}
-                  className={`${isListening && selectedNpcId === n.id ? "bg-red-600 hover:bg-red-700 text-white border-red-300" : "game-button text-[#fff2cf]"} px-4 py-2 text-sm rounded-lg transition-all duration-150 hover:scale-105 active:scale-90 active:opacity-75 flex items-center gap-2`}
+                  onClick={() => { playClickSound(); setSelectedNpcId(n.id); startListening(); }}
+                  className={`${isListening && selectedNpcId === n.id ? "bg-red-600 hover:bg-red-700 text-white border-red-500" : "game-button text-[#fff2cf]"} px-3 py-2.5 text-sm rounded-xl transition-all duration-150 hover:scale-105 active:scale-90 flex items-center gap-1.5`}
+                  style={!(isListening && selectedNpcId === n.id) ? { border: '1px solid var(--game-border)' } : {}}
+                  title={isListening && selectedNpcId === n.id ? "Stop recording" : "Hold to speak"}
                 >
-                  {isListening && selectedNpcId === n.id
-                    ? "Stop Mic"
-                    : "Use Mic"}
+                  {isListening && selectedNpcId === n.id ? (
+                    <><span className="w-2 h-2 rounded-full bg-white animate-pulse" /> Stop</>
+                  ) : (
+                    <>🎤 Mic</>
+                  )}
                 </button>
+                {/* Dismiss button */}
                 <button
-                  onClick={() => {
-                    playClickSound();
-                    dismissNPC(n.id);
-                  }}
-                  className="game-button px-4 py-2 text-sm text-[#fff2cf] transition-all duration-150 hover:scale-105 active:scale-90 active:opacity-75"
+                  onClick={() => { playClickSound(); dismissNPC(n.id); }}
+                  className="game-button px-3 py-2.5 text-sm rounded-xl text-[#ef4444] transition-all duration-150 hover:scale-105 active:scale-90"
+                  style={{ border: '1px solid var(--game-danger)' }}
+                  title="Dismiss NPC"
                 >
-                  Dismiss
+                  ✕
                 </button>
               </div>
             )}
@@ -1389,44 +1485,8 @@ export default function App() {
         ))}
       </div>
 
-      {/* Interaction Input overlay */}
-      {showInput && selectedNpcId && (
-        <div className="game-overlay absolute inset-0 z-20 flex items-center justify-center p-4 pointer-events-auto">
-          <div className="game-menu-shell p-6 w-full max-w-lg flex flex-col gap-4 shadow-2xl">
-            <h3 className="game-title text-lg">Your Reply:</h3>
-            <textarea
-              autoFocus
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              className="game-input w-full p-3 resize-none h-24"
-              placeholder="Type your response here..."
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  playClickSound();
-                  setShowInput(false);
-                  setInputText("");
-                }}
-                className="game-button px-4 py-2 text-sm transition-all duration-150 active:scale-90 active:opacity-60"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  playClickSound();
-                  handlePlayerSpeaks(selectedNpcId);
-                }}
-                className="game-button-primary px-6 py-2 text-sm transition-all duration-150 active:scale-90 active:opacity-75"
-              >
-                Send
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Inventory Button */}
+      {hudButtons.inventory && (
       <div className="absolute bottom-8 left-8 z-40 pointer-events-auto">
         <button
           onClick={() => { playClickSound(); setIsInventoryOpen(true); }}
@@ -1443,12 +1503,12 @@ export default function App() {
           </span>
         </button>
       </div>
+      )}
 
       {/* Phone Button & Other Controls */}
       <div className="absolute bottom-8 right-8 z-40 pointer-events-auto flex flex-col items-end gap-3">
         <div className="flex gap-3 items-center">
-          {!isPhoneOpen && activeNPCs.length < 2 && (
-            <>
+          {hudButtons.waitSeller && !isPhoneOpen && activeNPCs.length < 2 && (
               <button
                 id="btn-wait-customer"
                 onClick={() => {
@@ -1462,6 +1522,8 @@ export default function App() {
                   Wait for Seller
                 </span>
               </button>
+          )}
+          {hudButtons.runAd && !isPhoneOpen && activeNPCs.length < 2 && (
               <button
                 onClick={runAd}
                 className={`game-icon-button p-4 rounded-3xl shadow-2xl transition-all duration-150 hover:scale-110 active:scale-75 active:opacity-80 flex items-center justify-center group relative ${money >= 500 ? "text-[#57d163]" : "text-[#c79f60] opacity-50"}`}
@@ -1471,8 +1533,8 @@ export default function App() {
                   Run Ad · $500
                 </span>
               </button>
-            </>
           )}
+          {hudButtons.phone && (
           <button
             onClick={() => {
               playClickSound();
@@ -1487,8 +1549,139 @@ export default function App() {
               <Smartphone size={32} className="text-[#5fbc5f]" />
             )}
           </button>
+          )}
         </div>
       </div>
+
+      {/* HUD Button Config Panel */}
+      {showHudConfig && (
+        <div className="absolute top-16 right-4 z-50 pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="game-menu-shell p-4 w-56 shadow-2xl" style={{ border: '2px solid var(--game-border)' }}>
+            <div className="flex justify-between items-center mb-3">
+              <span className="game-label text-sm">HUD Buttons</span>
+              <button onClick={() => setShowHudConfig(false)} className="game-icon-button p-1 rounded">
+                <X size={16} />
+              </button>
+            </div>
+            {([
+              ['inventory', 'Inventory', Package],
+              ['phone', 'Phone', Smartphone],
+              ['waitSeller', 'Wait for Seller', Clock],
+              ['runAd', 'Run Ad', Megaphone],
+              ['settings', 'Settings', SettingsIcon],
+            ] as const).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                onClick={() => { playClickSound(); setHudButtons(p => ({ ...p, [key]: !p[key as keyof typeof p] })); }}
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-all duration-100 hover:bg-white/5"
+              >
+                <Icon size={18} style={{ color: hudButtons[key as keyof typeof hudButtons] ? 'var(--game-accent)' : 'var(--game-text-dim)' }} />
+                <span className="flex-1 text-left text-sm" style={{ color: 'var(--game-text)', fontFamily: 'Bungee' }}>{label}</span>
+                <div
+                  className="w-9 h-5 rounded-full transition-all duration-150 relative"
+                  style={{ background: hudButtons[key as keyof typeof hudButtons] ? 'var(--game-accent)' : 'var(--game-surface-raised)' }}
+                >
+                  <div
+                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-150"
+                    style={{ left: hudButtons[key as keyof typeof hudButtons] ? '18px' : '2px' }}
+                  />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Radio Close-up UI */}
+      {radioOpen && (
+        <div className="game-overlay absolute inset-0 z-50 flex items-center justify-center p-4 pointer-events-auto" onClick={() => setRadioOpen(false)}>
+          <div
+            className="game-menu-shell p-6 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+            style={{ border: '2px solid var(--game-border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Radio size={22} style={{ color: 'var(--game-accent)' }} />
+                <span className="game-title text-xl">Pawn Radio</span>
+              </div>
+              <button onClick={() => setRadioOpen(false)} className="game-icon-button p-1.5 rounded">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Track display */}
+            <div className="rounded-xl p-4 mb-4 text-center" style={{ background: 'var(--game-bg-1)', border: '1px solid var(--game-border)' }}>
+              <div className="game-text-dim text-xs mb-1" style={{ fontFamily: 'Bungee' }}>NOW PLAYING</div>
+              <div className="text-lg font-bold" style={{ color: 'var(--game-accent)', fontFamily: 'Bungee' }}>
+                {radioPlaying ? RADIO_TRACKS[radioTrack].name : "— Off —"}
+              </div>
+              <div className="game-text-dim text-xs mt-1">Track {radioTrack + 1} / {RADIO_TRACKS.length}</div>
+            </div>
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-4 mb-5">
+              <button
+                onClick={() => { playClickSound(); radioPlaying ? radioPause() : radioPlay(); }}
+                className="game-button-primary p-4 rounded-full transition-all duration-150 hover:scale-110 active:scale-90"
+              >
+                {radioPlaying ? <PauseIcon size={28} /> : <Play size={28} />}
+              </button>
+              <button
+                onClick={() => { playClickSound(); radioSkip(); }}
+                className="game-button p-3 rounded-full transition-all duration-150 hover:scale-110 active:scale-90"
+              >
+                <SkipForward size={22} />
+              </button>
+            </div>
+
+            {/* Volume */}
+            <div className="flex items-center gap-3 mb-4">
+              <Volume2 size={18} style={{ color: 'var(--game-text-dim)' }} />
+              <input
+                type="range"
+                min={0} max={1} step={0.05}
+                value={radioVolume}
+                onChange={(e) => radioSetVol(parseFloat(e.target.value))}
+                className="flex-1 h-2 rounded-full appearance-none cursor-pointer"
+                style={{ accentColor: 'var(--game-accent)', background: 'var(--game-surface-raised)' }}
+              />
+              <span className="text-xs w-8 text-right" style={{ color: 'var(--game-text-muted)', fontFamily: 'Bungee' }}>
+                {Math.round(radioVolume * 100)}
+              </span>
+            </div>
+
+            {/* Track list */}
+            <div className="flex flex-col gap-1">
+              {RADIO_TRACKS.map((t, i) => (
+                <button
+                  key={i}
+                  onClick={() => { playClickSound(); radioPlay(i); }}
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-100 hover:bg-white/5 text-left"
+                  style={i === radioTrack && radioPlaying ? { background: 'rgba(213,162,77,0.15)', border: '1px solid var(--game-border)' } : { border: '1px solid transparent' }}
+                >
+                  <span className="w-5 text-center text-xs" style={{ color: 'var(--game-text-dim)', fontFamily: 'Bungee' }}>{i + 1}</span>
+                  <span className="flex-1 text-sm" style={{ color: i === radioTrack && radioPlaying ? 'var(--game-accent)' : 'var(--game-text)', fontFamily: 'Bungee' }}>
+                    {t.name}
+                  </span>
+                  {i === radioTrack && radioPlaying && (
+                    <span className="flex gap-0.5">
+                      <span className="w-1 h-3 rounded-full animate-pulse" style={{ background: 'var(--game-accent)', animationDelay: '0ms' }} />
+                      <span className="w-1 h-4 rounded-full animate-pulse" style={{ background: 'var(--game-accent)', animationDelay: '150ms' }} />
+                      <span className="w-1 h-2 rounded-full animate-pulse" style={{ background: 'var(--game-accent)', animationDelay: '300ms' }} />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 text-center">
+              <span className="game-text-dim text-[10px]" style={{ fontFamily: 'Bungee' }}>♪ MADE WITH ELEVENLABS ♪</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Phone Interface */}
       {isPhoneOpen && (
@@ -2227,7 +2420,7 @@ export default function App() {
 
         <Suspense fallback={null}>
           <CameraSetup />
-          <PawnShop doorOpen={doorOpen} />
+          <PawnShop doorOpen={doorOpen} onRadioClick={() => { playClickSound(); setRadioOpen(true); }} />
           <Lighting />
           {activeNPCs.map((obj) => (
             <NPCCharacter

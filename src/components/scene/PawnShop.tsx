@@ -1,9 +1,9 @@
 import { Box, Cylinder, Sphere, useTexture } from "@react-three/drei";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-export function PawnShop({ doorOpen = false }: { doorOpen?: boolean }) {
+export function PawnShop({ doorOpen = false, onRadioClick }: { doorOpen?: boolean; onRadioClick?: () => void }) {
   const roomDepth = 8.0;
   const roomWidth = 5.0;
   const roomHeight = 3.5;
@@ -12,6 +12,7 @@ export function PawnShop({ doorOpen = false }: { doorOpen?: boolean }) {
     <group>
       <Room width={roomWidth} height={roomHeight} depth={roomDepth} doorOpen={doorOpen} />
       <Counter position={[0, 0, -1.0]} />
+      <Radio position={[-1.6, 1.22, -1.0]} onClick={onRadioClick} />
       <ShopDecorations
         roomWidth={roomWidth}
         roomHeight={roomHeight}
@@ -193,7 +194,7 @@ function Counter({ position }: { position: [number, number, number] }) {
         castShadow
         receiveShadow
       >
-        <meshStandardMaterial map={tableTex} roughness={0.9} />
+        <meshStandardMaterial map={tableTex} roughness={1} metalness={0} />
       </Box>
 
       {/* Front panels */}
@@ -203,7 +204,7 @@ function Counter({ position }: { position: [number, number, number] }) {
           args={[0.5, 0.9, 0.05]}
           position={[-1.25 + i * 0.5, 0.55, 0.52]}
         >
-          <meshStandardMaterial map={tableTex} roughness={0.9} />
+          <meshStandardMaterial map={tableTex} roughness={1} metalness={0} />
         </Box>
       ))}
 
@@ -214,7 +215,7 @@ function Counter({ position }: { position: [number, number, number] }) {
         receiveShadow
         castShadow
       >
-        <meshStandardMaterial map={tableTex} roughness={0.95} metalness={0} />
+        <meshStandardMaterial map={tableTex} roughness={1} metalness={0} />
       </Box>
 
       {/* Gold edge trim — front */}
@@ -237,6 +238,64 @@ function Counter({ position }: { position: [number, number, number] }) {
       {/* Thin inner accent line — front */}
       <Box args={[4.18, 0.012, 0.012]} position={[0, 1.165, 0.54]} castShadow>
         <meshPhysicalMaterial color="#ffd877" metalness={0.9} roughness={0.15} clearcoat={0.8} emissive="#c89530" emissiveIntensity={0.2} />
+      </Box>
+    </group>
+  );
+}
+
+function Radio({ position, onClick }: { position: [number, number, number]; onClick?: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  const glowRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (glowRef.current) {
+      glowRef.current.visible = hovered;
+      if (hovered) {
+        const pulse = Math.sin(state.clock.elapsedTime * 4) * 0.15 + 0.85;
+        glowRef.current.scale.setScalar(pulse);
+      }
+    }
+    document.body.style.cursor = hovered ? 'pointer' : 'auto';
+  });
+
+  return (
+    <group
+      position={position}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+    >
+      {/* Radio body */}
+      <Box args={[0.35, 0.2, 0.18]} castShadow>
+        <meshStandardMaterial color="#2a2a2a" roughness={0.6} metalness={0.3} />
+      </Box>
+      {/* Speaker grille left */}
+      <Box args={[0.1, 0.12, 0.01]} position={[-0.08, 0, 0.095]}>
+        <meshStandardMaterial color="#1a1a1a" />
+      </Box>
+      {/* Speaker grille right */}
+      <Box args={[0.1, 0.12, 0.01]} position={[0.08, 0, 0.095]}>
+        <meshStandardMaterial color="#1a1a1a" />
+      </Box>
+      {/* Tuner dial */}
+      <Cylinder args={[0.025, 0.025, 0.02, 8]} position={[-0.06, 0.06, 0.095]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.8} roughness={0.2} />
+      </Cylinder>
+      {/* Volume knob */}
+      <Cylinder args={[0.02, 0.02, 0.02, 8]} position={[0.06, 0.06, 0.095]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.8} roughness={0.2} />
+      </Cylinder>
+      {/* Antenna */}
+      <Cylinder args={[0.005, 0.003, 0.25, 4]} position={[0.12, 0.2, 0]} rotation={[0, 0, -0.2]}>
+        <meshStandardMaterial color="#888" metalness={0.9} roughness={0.1} />
+      </Cylinder>
+      {/* Antenna tip */}
+      <Sphere args={[0.008, 6, 6]} position={[0.17, 0.32, 0]}>
+        <meshStandardMaterial color="#d5a24d" metalness={0.9} roughness={0.1} />
+      </Sphere>
+      {/* Hover glow outline */}
+      <Box ref={glowRef} args={[0.38, 0.23, 0.21]} visible={false}>
+        <meshStandardMaterial color="#ffffff" transparent opacity={0.15} emissive="#ffffff" emissiveIntensity={0.5} wireframe />
       </Box>
     </group>
   );
