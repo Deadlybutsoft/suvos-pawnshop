@@ -216,6 +216,28 @@ function Counter({ position }: { position: [number, number, number] }) {
       >
         <meshStandardMaterial map={tableTex} roughness={0.95} metalness={0} />
       </Box>
+
+      {/* Gold edge trim — front */}
+      <Box args={[4.22, 0.035, 0.025]} position={[0, 1.18, 0.56]} castShadow>
+        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Gold edge trim — back */}
+      <Box args={[4.22, 0.035, 0.025]} position={[0, 1.18, -0.56]} castShadow>
+        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Gold edge trim — left */}
+      <Box args={[0.025, 0.035, 1.12]} position={[-2.11, 1.18, 0]} castShadow>
+        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+      {/* Gold edge trim — right */}
+      <Box args={[0.025, 0.035, 1.12]} position={[2.11, 1.18, 0]} castShadow>
+        <meshPhysicalMaterial color="#d5a24d" metalness={0.85} roughness={0.2} clearcoat={0.6} clearcoatRoughness={0.1} emissive="#a07828" emissiveIntensity={0.15} />
+      </Box>
+
+      {/* Thin inner accent line — front */}
+      <Box args={[4.18, 0.012, 0.012]} position={[0, 1.165, 0.54]} castShadow>
+        <meshPhysicalMaterial color="#ffd877" metalness={0.9} roughness={0.15} clearcoat={0.8} emissive="#c89530" emissiveIntensity={0.2} />
+      </Box>
     </group>
   );
 }

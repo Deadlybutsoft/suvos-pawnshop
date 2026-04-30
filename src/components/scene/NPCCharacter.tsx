@@ -18,7 +18,6 @@ const EARRING_COLORS = ['#ffd700','#c0c0c0','#cd7f32'];
 function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 function chance(pct: number) { return Math.random() < pct; }
 
-// Hair style generators
 type HairStyle = 'flat' | 'tall' | 'mohawk' | 'side' | 'long' | 'bald' | 'afro' | 'buzz';
 const HAIR_STYLES: HairStyle[] = ['flat','tall','mohawk','side','long','bald','afro','buzz'];
 
@@ -27,36 +26,19 @@ function generateTraits(gender: 'male' | 'female') {
   const hairColor = pick(HAIR_COLORS);
   const hairStyle = pick(HAIR_STYLES);
   const isFemale = gender === 'female';
-
   return {
-    skin,
-    shirt: pick(SHIRT_COLORS),
-    pants: pick(PANT_COLORS),
-    hairColor,
-    hairStyle,
-    // Accessories (each independent boolean)
-    hasGlasses: chance(0.25),
-    glassesColor: pick(['#1a1a1a','#4a3018','#c0392b','#2980b9']),
-    hasHat: !chance(0.25) ? false : true, // 25%
-    hatColor: pick(SHIRT_COLORS),
-    hatStyle: pick(['cap','beanie','tophat'] as const),
-    hasChain: chance(0.2),
-    chainColor: pick(CHAIN_COLORS),
-    hasScarf: chance(0.15),
-    scarfColor: pick(SCARF_COLORS),
-    hasHeadband: chance(0.1),
-    headbandColor: pick(HEADBAND_COLORS),
-    hasEarrings: chance(isFemale ? 0.4 : 0.15),
-    earringColor: pick(EARRING_COLORS),
-    hasBeard: !isFemale && chance(0.35),
-    beardColor: hairColor,
-    beardStyle: pick(['goatee','full','stubble'] as const),
-    hasJacket: chance(0.3),
-    jacketColor: pick(JACKET_COLORS),
-    // Body variation
-    bodyWidth: 0.45 + Math.random() * 0.15, // 0.45-0.6
-    bodyHeight: 0.65 + Math.random() * 0.15, // 0.65-0.8
-    headScale: 0.95 + Math.random() * 0.15, // 0.95-1.1
+    skin, shirt: pick(SHIRT_COLORS), pants: pick(PANT_COLORS), hairColor, hairStyle,
+    hasGlasses: chance(0.25), glassesColor: pick(['#1a1a1a','#4a3018','#c0392b','#2980b9']),
+    hasHat: chance(0.25), hatColor: pick(SHIRT_COLORS), hatStyle: pick(['cap','beanie','tophat'] as const),
+    hasChain: chance(0.2), chainColor: pick(CHAIN_COLORS),
+    hasScarf: chance(0.15), scarfColor: pick(SCARF_COLORS),
+    hasHeadband: chance(0.1), headbandColor: pick(HEADBAND_COLORS),
+    hasEarrings: chance(isFemale ? 0.4 : 0.15), earringColor: pick(EARRING_COLORS),
+    hasBeard: !isFemale && chance(0.35), beardColor: hairColor, beardStyle: pick(['goatee','full','stubble'] as const),
+    hasJacket: chance(0.3), jacketColor: pick(JACKET_COLORS),
+    bodyWidth: 0.45 + Math.random() * 0.15,
+    bodyHeight: 0.65 + Math.random() * 0.15,
+    headScale: 0.95 + Math.random() * 0.15,
     eyeColor: pick(['#1a1a1a','#3b2219','#2980b9','#27ae60','#7f8c8d']),
   };
 }
@@ -72,21 +54,16 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
   const mouthRef = useRef<THREE.Mesh>(null);
 
   const [traits] = useState(() => generateTraits(npc?.gender ?? 'male'));
-  const prevLineRef = useRef(currentLine);
-  const talkingRef = useRef(false);
   const gesturePhaseRef = useRef(0);
 
-  // Detect talking state from currentLine changes
   const isTalking = currentLine !== '' && currentLine !== '...';
 
-  // Memoize body dimensions
   const body = useMemo(() => {
     const bw = traits.bodyWidth;
     const bh = traits.bodyHeight;
     const torsoY = 0.7 + bh / 2;
-    const headY = 0.7 + bh + 0.2;
-    const legH = 0.7;
-    return { bw, bh, torsoY, headY, legH };
+    const headY = 0.7 + bh + 0.28;
+    return { bw, bh, torsoY, headY };
   }, [traits]);
 
   useFrame((state, delta) => {
@@ -94,7 +71,7 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
     const g = groupRef.current;
     const t = state.clock.elapsedTime;
 
-    // --- Movement ---
+    // Movement
     const tX = targetPos[0];
     const tZ = isLeaving ? 5 : targetPos[2];
     const zDiff = Math.abs(g.position.z - tZ);
@@ -105,32 +82,22 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
       const speed = 2.0;
       if (zDiff > 0.05) g.position.z += Math.sign(tZ - g.position.z) * Math.min(speed * delta, zDiff);
       if (xDiff > 0.05) g.position.x += Math.sign(tX - g.position.x) * Math.min(speed * delta, xDiff);
-      // Walk bounce
       g.position.y = Math.abs(Math.sin(t * 10)) * 0.1;
-      // Face target
       const angle = Math.atan2(tX - g.position.x, tZ - g.position.z);
       g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, angle, delta * 5);
     } else {
       g.position.y = THREE.MathUtils.lerp(g.position.y, 0, delta * 5);
-      if (!isLeaving) {
-        g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, Math.PI, delta * 5);
-      }
+      if (!isLeaving) g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, Math.PI, delta * 5);
     }
 
-    // Visibility
-    if (isLeaving && g.position.z > 4.9) { g.visible = false; } else { g.visible = true; }
+    if (isLeaving && g.position.z > 4.9) g.visible = false; else g.visible = true;
 
-    // --- Idle body sway (breathing / weight shift) ---
-    if (!isWalking) {
-      // Subtle torso sway
-      g.children[0] && (g.rotation.z = Math.sin(t * 0.8) * 0.01);
-    } else {
-      g.rotation.z = THREE.MathUtils.lerp(g.rotation.z, 0, delta * 5);
-    }
+    if (!isWalking) g.rotation.z = Math.sin(t * 0.8) * 0.01;
+    else g.rotation.z = THREE.MathUtils.lerp(g.rotation.z, 0, delta * 5);
 
-    // --- Eye blinking ---
+    // Eye blinking
     if (headRef.current) {
-      const blinkCycle = t % (3 + Math.sin(t * 0.3) * 0.5); // Slightly irregular
+      const blinkCycle = t % (3 + Math.sin(t * 0.3) * 0.5);
       const isBlinking = blinkCycle < 0.08;
       const leftEye = headRef.current.getObjectByName('leftEye');
       const rightEye = headRef.current.getObjectByName('rightEye');
@@ -138,10 +105,9 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
       if (rightEye) rightEye.scale.y = isBlinking ? 0.1 : 1;
     }
 
-    // --- Mouth animation (sync to talking) ---
+    // Mouth animation
     if (mouthRef.current) {
       if (isTalking) {
-        // Rapid open/close to simulate speech
         const mouthOpen = (Math.sin(t * 12) * 0.5 + 0.5) * 0.04 + 0.01;
         mouthRef.current.scale.y = 1 + mouthOpen * 15;
         mouthRef.current.scale.x = 1 + Math.sin(t * 8) * 0.15;
@@ -151,10 +117,9 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
       }
     }
 
-    // --- Arm gestures ---
+    // Arm gestures
     if (leftArmRef.current && rightArmRef.current) {
       if (isTalking && !isWalking) {
-        // Gesture while talking — arms move expressively
         gesturePhaseRef.current += delta * 3;
         const gp = gesturePhaseRef.current;
         leftArmRef.current.rotation.x = Math.sin(gp * 1.2) * 0.25;
@@ -162,13 +127,11 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
         rightArmRef.current.rotation.x = Math.sin(gp * 1.5 + 1) * 0.2;
         rightArmRef.current.rotation.z = Math.sin(gp * 0.9 + 2) * 0.1 + 0.05;
       } else if (isWalking) {
-        // Walk arm swing
         leftArmRef.current.rotation.x = Math.sin(t * 10) * 0.3;
         rightArmRef.current.rotation.x = -Math.sin(t * 10) * 0.3;
         leftArmRef.current.rotation.z = 0;
         rightArmRef.current.rotation.z = 0;
       } else {
-        // Idle — subtle sway
         leftArmRef.current.rotation.x = THREE.MathUtils.lerp(leftArmRef.current.rotation.x, Math.sin(t * 0.6) * 0.03, delta * 3);
         rightArmRef.current.rotation.x = THREE.MathUtils.lerp(rightArmRef.current.rotation.x, Math.sin(t * 0.6 + 1) * 0.03, delta * 3);
         leftArmRef.current.rotation.z = THREE.MathUtils.lerp(leftArmRef.current.rotation.z, 0, delta * 3);
@@ -176,7 +139,7 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
       }
     }
 
-    // --- Head micro-movement ---
+    // Head micro-movement
     if (headRef.current) {
       if (isTalking) {
         headRef.current.rotation.y = Math.sin(t * 2) * 0.08;
@@ -194,254 +157,284 @@ export function NPCCharacter({ id, npc, isLeaving, targetPos, currentLine, capti
   return (
     <group ref={groupRef} position={[targetPos[0], 0, 5]} rotation={[0, Math.PI, 0]}>
       {/* === TORSO === */}
-      <Box args={[bw, bh, 0.3]} position={[0, torsoY, 0]} castShadow>
-        <meshStandardMaterial color={traits.shirt} />
+      {/* Main torso - rounded box shape */}
+      <Box args={[bw, bh, 0.28]} position={[0, torsoY, 0]} castShadow receiveShadow>
+        <meshPhysicalMaterial color={traits.shirt} roughness={0.75} clearcoat={0.08} />
+      </Box>
+      {/* Shoulder area - slightly wider top */}
+      <Box args={[bw + 0.06, 0.1, 0.26]} position={[0, torsoY + bh / 2 - 0.05, 0]} castShadow>
+        <meshPhysicalMaterial color={traits.shirt} roughness={0.75} clearcoat={0.08} />
       </Box>
 
-      {/* Jacket (open front vest look) */}
-      {traits.hasJacket && (
-        <Box args={[bw + 0.06, bh - 0.05, 0.32]} position={[0, torsoY, 0]} castShadow>
-          <meshStandardMaterial color={traits.jacketColor} />
+      {/* Jacket */}
+      {traits.hasJacket && (<>
+        <Box args={[bw + 0.07, bh - 0.05, 0.3]} position={[0, torsoY, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.jacketColor} roughness={0.6} clearcoat={0.12} />
         </Box>
-      )}
+        {/* Collar */}
+        <Box args={[bw * 0.4, 0.06, 0.08]} position={[0, torsoY + bh / 2 + 0.02, 0.14]} castShadow>
+          <meshPhysicalMaterial color={traits.jacketColor} roughness={0.6} clearcoat={0.12} />
+        </Box>
+      </>)}
 
       {/* Chain necklace */}
       {traits.hasChain && (
-        <Cylinder args={[0.12, 0.14, 0.02, 8]} position={[0, torsoY + bh / 2 - 0.05, 0.16]} rotation={[Math.PI / 2, 0, 0]}>
-          <meshStandardMaterial color={traits.chainColor} metalness={0.9} roughness={0.2} />
+        <Cylinder args={[0.13, 0.15, 0.015, 12]} position={[0, torsoY + bh / 2 - 0.04, 0.15]} rotation={[Math.PI / 2, 0, 0]}>
+          <meshStandardMaterial color={traits.chainColor} metalness={0.95} roughness={0.1} />
         </Cylinder>
       )}
 
       {/* Scarf */}
-      {traits.hasScarf && (
-        <Box args={[0.28, 0.12, 0.34]} position={[0, torsoY + bh / 2 - 0.02, 0]} castShadow>
-          <meshStandardMaterial color={traits.scarfColor} />
-        </Box>
-      )}
+      {traits.hasScarf && (<>
+        <Cylinder args={[0.14, 0.16, 0.1, 10]} position={[0, torsoY + bh / 2, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.scarfColor} roughness={0.85} />
+        </Cylinder>
+      </>)}
+
+      {/* === NECK === */}
+      <Cylinder args={[0.06, 0.07, 0.1, 8]} position={[0, torsoY + bh / 2 + 0.08, 0]} castShadow>
+        <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
+      </Cylinder>
 
       {/* === HEAD GROUP === */}
       <group position={[0, headY, 0]} ref={headRef} scale={[hs, hs, hs]}>
-        {/* Head */}
-        <Box args={[0.25, 0.28, 0.25]} castShadow>
-          <meshStandardMaterial color={traits.skin} />
-        </Box>
+        {/* Head - sphere for natural shape */}
+        <Sphere args={[0.17, 14, 14]} castShadow receiveShadow>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
+        </Sphere>
 
-        {/* --- HAIR STYLES --- */}
+        {/* --- HAIR --- */}
         {traits.hairStyle === 'flat' && (
-          <Box args={[0.27, 0.06, 0.27]} position={[0, 0.14, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
-          </Box>
+          <Sphere args={[0.175, 12, 12]} position={[0, 0.03, -0.01]} scale={[1, 0.5, 1]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
+          </Sphere>
         )}
         {traits.hairStyle === 'tall' && (
-          <Box args={[0.26, 0.14, 0.26]} position={[0, 0.16, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
-          </Box>
+          <Sphere args={[0.16, 12, 12]} position={[0, 0.1, -0.01]} scale={[1, 1.2, 0.9]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
+          </Sphere>
         )}
         {traits.hairStyle === 'mohawk' && (
-          <Box args={[0.08, 0.18, 0.24]} position={[0, 0.18, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
+          <Box args={[0.06, 0.2, 0.22]} position={[0, 0.16, -0.01]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.7} />
           </Box>
         )}
         {traits.hairStyle === 'side' && (<>
-          <Box args={[0.27, 0.06, 0.27]} position={[0, 0.14, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
-          </Box>
-          <Box args={[0.06, 0.18, 0.26]} position={[-0.13, 0.05, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
+          <Sphere args={[0.175, 12, 12]} position={[0, 0.03, -0.01]} scale={[1, 0.5, 1]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
+          </Sphere>
+          <Box args={[0.06, 0.2, 0.2]} position={[-0.14, 0, 0]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
           </Box>
         </>)}
         {traits.hairStyle === 'long' && (<>
-          <Box args={[0.27, 0.06, 0.27]} position={[0, 0.14, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
+          <Sphere args={[0.175, 12, 12]} position={[0, 0.03, -0.01]} scale={[1, 0.5, 1]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
+          </Sphere>
+          <Box args={[0.3, 0.22, 0.06]} position={[0, -0.04, -0.14]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
           </Box>
-          <Box args={[0.27, 0.2, 0.06]} position={[0, 0, -0.13]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
+          <Box args={[0.06, 0.22, 0.18]} position={[-0.14, -0.04, -0.02]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
           </Box>
-          <Box args={[0.06, 0.2, 0.2]} position={[-0.13, 0, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
-          </Box>
-          <Box args={[0.06, 0.2, 0.2]} position={[0.13, 0, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
+          <Box args={[0.06, 0.22, 0.18]} position={[0.14, -0.04, -0.02]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.8} />
           </Box>
         </>)}
         {traits.hairStyle === 'afro' && (
-          <Sphere args={[0.2, 8, 8]} position={[0, 0.1, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
+          <Sphere args={[0.22, 14, 14]} position={[0, 0.06, 0]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.95} />
           </Sphere>
         )}
         {traits.hairStyle === 'buzz' && (
-          <Box args={[0.26, 0.03, 0.26]} position={[0, 0.14, 0]} castShadow>
-            <meshStandardMaterial color={traits.hairColor} />
-          </Box>
+          <Sphere args={[0.175, 12, 12]} position={[0, 0.02, 0]} scale={[1, 0.35, 1]} castShadow>
+            <meshPhysicalMaterial color={traits.hairColor} roughness={0.9} />
+          </Sphere>
         )}
-        {/* bald = no hair mesh */}
 
         {/* --- EYES --- */}
         {/* Eye whites */}
-        <Box args={[0.055, 0.04, 0.01]} position={[-0.055, 0.03, 0.13]}>
-          <meshStandardMaterial color="#f5f5f5" />
-        </Box>
-        <Box args={[0.055, 0.04, 0.01]} position={[0.055, 0.03, 0.13]}>
-          <meshStandardMaterial color="#f5f5f5" />
-        </Box>
+        <Sphere args={[0.028, 8, 8]} position={[-0.06, 0.02, 0.145]}>
+          <meshStandardMaterial color="#f5f5f5" emissive="#ffffff" emissiveIntensity={0.08} />
+        </Sphere>
+        <Sphere args={[0.028, 8, 8]} position={[0.06, 0.02, 0.145]}>
+          <meshStandardMaterial color="#f5f5f5" emissive="#ffffff" emissiveIntensity={0.08} />
+        </Sphere>
         {/* Pupils */}
-        <Box name="leftEye" args={[0.03, 0.03, 0.01]} position={[-0.055, 0.03, 0.135]} castShadow>
+        <Sphere name="leftEye" args={[0.016, 8, 8]} position={[-0.06, 0.02, 0.165]}>
           <meshStandardMaterial color={traits.eyeColor} />
-        </Box>
-        <Box name="rightEye" args={[0.03, 0.03, 0.01]} position={[0.055, 0.03, 0.135]} castShadow>
+        </Sphere>
+        <Sphere name="rightEye" args={[0.016, 8, 8]} position={[0.06, 0.02, 0.165]}>
           <meshStandardMaterial color={traits.eyeColor} />
-        </Box>
+        </Sphere>
 
         {/* Eyebrows */}
-        <Box args={[0.06, 0.015, 0.01]} position={[-0.055, 0.06, 0.13]}>
+        <Box args={[0.055, 0.012, 0.015]} position={[-0.06, 0.055, 0.15]} rotation={[0, 0, 0.08]}>
           <meshStandardMaterial color={traits.hairColor} />
         </Box>
-        <Box args={[0.06, 0.015, 0.01]} position={[0.055, 0.06, 0.13]}>
+        <Box args={[0.055, 0.012, 0.015]} position={[0.06, 0.055, 0.15]} rotation={[0, 0, -0.08]}>
           <meshStandardMaterial color={traits.hairColor} />
         </Box>
 
         {/* Nose */}
-        <Box args={[0.03, 0.04, 0.04]} position={[0, -0.01, 0.14]} castShadow>
-          <meshStandardMaterial color={traits.skin} />
-        </Box>
+        <Sphere args={[0.022, 8, 8]} position={[0, -0.015, 0.16]}>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
+        </Sphere>
 
         {/* Mouth */}
-        <Box ref={mouthRef} args={[0.06, 0.02, 0.01]} position={[0, -0.06, 0.13]}>
+        <Cylinder ref={mouthRef} args={[0.028, 0.024, 0.008, 10]} position={[0, -0.065, 0.15]} rotation={[Math.PI / 2, 0, 0]}>
           <meshStandardMaterial color="#8b3a3a" />
-        </Box>
+        </Cylinder>
 
         {/* Ears */}
-        <Box args={[0.04, 0.06, 0.04]} position={[-0.14, 0, 0]}>
-          <meshStandardMaterial color={traits.skin} />
-        </Box>
-        <Box args={[0.04, 0.06, 0.04]} position={[0.14, 0, 0]}>
-          <meshStandardMaterial color={traits.skin} />
-        </Box>
+        <Sphere args={[0.032, 8, 8]} position={[-0.17, 0, 0]}>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
+        </Sphere>
+        <Sphere args={[0.032, 8, 8]} position={[0.17, 0, 0]}>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
+        </Sphere>
 
         {/* --- BEARD --- */}
         {traits.hasBeard && traits.beardStyle === 'full' && (
-          <Box args={[0.22, 0.12, 0.12]} position={[0, -0.1, 0.06]} castShadow>
-            <meshStandardMaterial color={traits.beardColor} />
-          </Box>
+          <Sphere args={[0.14, 10, 10]} position={[0, -0.1, 0.04]} scale={[1, 0.7, 0.8]} castShadow>
+            <meshPhysicalMaterial color={traits.beardColor} roughness={0.9} />
+          </Sphere>
         )}
         {traits.hasBeard && traits.beardStyle === 'goatee' && (
-          <Box args={[0.08, 0.1, 0.08]} position={[0, -0.1, 0.08]} castShadow>
-            <meshStandardMaterial color={traits.beardColor} />
-          </Box>
+          <Cylinder args={[0.03, 0.025, 0.08, 8]} position={[0, -0.1, 0.08]} castShadow>
+            <meshPhysicalMaterial color={traits.beardColor} roughness={0.9} />
+          </Cylinder>
         )}
         {traits.hasBeard && traits.beardStyle === 'stubble' && (
-          <Box args={[0.2, 0.06, 0.06]} position={[0, -0.08, 0.08]}>
-            <meshStandardMaterial color={traits.beardColor} transparent opacity={0.4} />
-          </Box>
+          <Sphere args={[0.15, 10, 10]} position={[0, -0.06, 0.03]} scale={[1, 0.4, 0.7]}>
+            <meshStandardMaterial color={traits.beardColor} transparent opacity={0.35} />
+          </Sphere>
         )}
 
         {/* --- GLASSES --- */}
         {traits.hasGlasses && (
-          <group position={[0, 0.03, 0.14]}>
-            <Box args={[0.07, 0.04, 0.01]} position={[-0.055, 0, 0]}>
-              <meshStandardMaterial color={traits.glassesColor} transparent opacity={0.7} />
-            </Box>
-            <Box args={[0.07, 0.04, 0.01]} position={[0.055, 0, 0]}>
-              <meshStandardMaterial color={traits.glassesColor} transparent opacity={0.7} />
-            </Box>
-            <Box args={[0.03, 0.008, 0.01]} position={[0, 0, 0]}>
+          <group position={[0, 0.02, 0.16]}>
+            <Cylinder args={[0.035, 0.035, 0.008, 10]} position={[-0.06, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <meshStandardMaterial color={traits.glassesColor} transparent opacity={0.5} metalness={0.3} />
+            </Cylinder>
+            <Cylinder args={[0.035, 0.035, 0.008, 10]} position={[0.06, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <meshStandardMaterial color={traits.glassesColor} transparent opacity={0.5} metalness={0.3} />
+            </Cylinder>
+            <Cylinder args={[0.004, 0.004, 0.04, 4]} position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
               <meshStandardMaterial color={traits.glassesColor} />
-            </Box>
+            </Cylinder>
           </group>
         )}
 
         {/* --- HAT --- */}
         {traits.hasHat && !traits.hasHeadband && traits.hatStyle === 'cap' && (
-          <group position={[0, 0.18, 0]}>
-            <Box args={[0.28, 0.1, 0.28]} castShadow>
-              <meshStandardMaterial color={traits.hatColor} />
-            </Box>
-            <Box args={[0.28, 0.02, 0.14]} position={[0, -0.04, 0.2]} castShadow>
-              <meshStandardMaterial color={traits.hatColor} />
+          <group position={[0, 0.14, 0]}>
+            <Sphere args={[0.18, 12, 12]} scale={[1, 0.45, 1]} castShadow>
+              <meshPhysicalMaterial color={traits.hatColor} roughness={0.7} />
+            </Sphere>
+            <Box args={[0.22, 0.02, 0.1]} position={[0, -0.02, 0.16]} castShadow>
+              <meshPhysicalMaterial color={traits.hatColor} roughness={0.7} />
             </Box>
           </group>
         )}
         {traits.hasHat && !traits.hasHeadband && traits.hatStyle === 'beanie' && (
-          <group position={[0, 0.16, 0]}>
-            <Box args={[0.27, 0.12, 0.27]} castShadow>
-              <meshStandardMaterial color={traits.hatColor} />
-            </Box>
-            <Sphere args={[0.03, 6, 6]} position={[0, 0.08, 0]}>
-              <meshStandardMaterial color={traits.hatColor} />
+          <group position={[0, 0.12, 0]}>
+            <Sphere args={[0.18, 12, 12]} scale={[1, 0.6, 1]} castShadow>
+              <meshPhysicalMaterial color={traits.hatColor} roughness={0.85} />
+            </Sphere>
+            <Sphere args={[0.025, 6, 6]} position={[0, 0.1, 0]}>
+              <meshPhysicalMaterial color={traits.hatColor} roughness={0.85} />
             </Sphere>
           </group>
         )}
         {traits.hasHat && !traits.hasHeadband && traits.hatStyle === 'tophat' && (
-          <group position={[0, 0.22, 0]}>
-            <Box args={[0.26, 0.2, 0.26]} castShadow>
-              <meshStandardMaterial color="#1a1a1a" />
-            </Box>
-            <Box args={[0.34, 0.02, 0.34]} position={[0, -0.1, 0]} castShadow>
-              <meshStandardMaterial color="#1a1a1a" />
-            </Box>
+          <group position={[0, 0.2, 0]}>
+            <Cylinder args={[0.12, 0.13, 0.22, 12]} castShadow>
+              <meshPhysicalMaterial color="#1a1a1a" roughness={0.4} clearcoat={0.2} />
+            </Cylinder>
+            <Cylinder args={[0.18, 0.18, 0.02, 12]} position={[0, -0.11, 0]} castShadow>
+              <meshPhysicalMaterial color="#1a1a1a" roughness={0.4} clearcoat={0.2} />
+            </Cylinder>
           </group>
         )}
 
         {/* --- HEADBAND --- */}
         {traits.hasHeadband && !traits.hasHat && (
-          <Box args={[0.27, 0.04, 0.27]} position={[0, 0.1, 0]} castShadow>
-            <meshStandardMaterial color={traits.headbandColor} />
-          </Box>
+          <Cylinder args={[0.175, 0.175, 0.04, 12]} position={[0, 0.08, 0]} castShadow>
+            <meshPhysicalMaterial color={traits.headbandColor} roughness={0.7} />
+          </Cylinder>
         )}
 
         {/* --- EARRINGS --- */}
         {traits.hasEarrings && (<>
-          <Sphere args={[0.015, 6, 6]} position={[-0.14, -0.04, 0]}>
-            <meshStandardMaterial color={traits.earringColor} metalness={0.9} roughness={0.1} />
+          <Sphere args={[0.015, 6, 6]} position={[-0.17, -0.05, 0]}>
+            <meshStandardMaterial color={traits.earringColor} metalness={0.95} roughness={0.08} />
           </Sphere>
-          <Sphere args={[0.015, 6, 6]} position={[0.14, -0.04, 0]}>
-            <meshStandardMaterial color={traits.earringColor} metalness={0.9} roughness={0.1} />
+          <Sphere args={[0.015, 6, 6]} position={[0.17, -0.05, 0]}>
+            <meshStandardMaterial color={traits.earringColor} metalness={0.95} roughness={0.08} />
           </Sphere>
         </>)}
       </group>
 
       {/* === LEGS === */}
-      <Box args={[0.2, 0.7, 0.2]} position={[-0.12, 0.35, 0]} castShadow>
-        <meshStandardMaterial color={traits.pants} />
+      {/* Left thigh */}
+      <Box args={[0.18, 0.38, 0.2]} position={[-0.12, 0.52, 0]} castShadow receiveShadow>
+        <meshPhysicalMaterial color={traits.pants} roughness={0.75} clearcoat={0.06} />
       </Box>
-      <Box args={[0.2, 0.7, 0.2]} position={[0.12, 0.35, 0]} castShadow>
-        <meshStandardMaterial color={traits.pants} />
+      {/* Left calf */}
+      <Box args={[0.15, 0.35, 0.17]} position={[-0.12, 0.18, 0]} castShadow receiveShadow>
+        <meshPhysicalMaterial color={traits.pants} roughness={0.75} clearcoat={0.06} />
+      </Box>
+      {/* Right thigh */}
+      <Box args={[0.18, 0.38, 0.2]} position={[0.12, 0.52, 0]} castShadow receiveShadow>
+        <meshPhysicalMaterial color={traits.pants} roughness={0.75} clearcoat={0.06} />
+      </Box>
+      {/* Right calf */}
+      <Box args={[0.15, 0.35, 0.17]} position={[0.12, 0.18, 0]} castShadow receiveShadow>
+        <meshPhysicalMaterial color={traits.pants} roughness={0.75} clearcoat={0.06} />
       </Box>
       {/* Shoes */}
-      <Box args={[0.2, 0.06, 0.26]} position={[-0.12, 0.03, 0.02]} castShadow>
-        <meshStandardMaterial color="#1a1a1a" />
-      </Box>
-      <Box args={[0.2, 0.06, 0.26]} position={[0.12, 0.03, 0.02]} castShadow>
-        <meshStandardMaterial color="#1a1a1a" />
-      </Box>
+      <Sphere args={[0.09, 8, 8]} position={[-0.12, 0.04, 0.03]} scale={[1.1, 0.4, 1.4]} castShadow>
+        <meshPhysicalMaterial color="#1a1a1a" roughness={0.4} clearcoat={0.25} />
+      </Sphere>
+      <Sphere args={[0.09, 8, 8]} position={[0.12, 0.04, 0.03]} scale={[1.1, 0.4, 1.4]} castShadow>
+        <meshPhysicalMaterial color="#1a1a1a" roughness={0.4} clearcoat={0.25} />
+      </Sphere>
 
-      {/* === LEFT ARM (group for rotation pivot at shoulder) === */}
+      {/* === LEFT ARM === */}
       <group ref={leftArmRef} position={[-(bw / 2 + 0.1), torsoY + bh / 2 - 0.1, 0]}>
-        {/* Sleeve */}
-        <Box args={[0.16, 0.22, 0.16]} position={[0, -0.1, 0]} castShadow>
-          <meshStandardMaterial color={traits.hasJacket ? traits.jacketColor : traits.shirt} />
+        {/* Shoulder joint */}
+        <Sphere args={[0.07, 8, 8]} position={[0, 0, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.hasJacket ? traits.jacketColor : traits.shirt} roughness={0.75} clearcoat={0.08} />
+        </Sphere>
+        {/* Upper arm / sleeve */}
+        <Box args={[0.14, 0.22, 0.14]} position={[0, -0.14, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.hasJacket ? traits.jacketColor : traits.shirt} roughness={0.75} clearcoat={0.08} />
         </Box>
         {/* Forearm */}
-        <Box args={[0.14, 0.35, 0.14]} position={[0, -0.38, 0]} castShadow>
-          <meshStandardMaterial color={traits.skin} />
+        <Box args={[0.11, 0.3, 0.11]} position={[0, -0.38, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
         </Box>
         {/* Hand */}
-        <Box args={[0.1, 0.08, 0.1]} position={[0, -0.58, 0]} castShadow>
-          <meshStandardMaterial color={traits.skin} />
-        </Box>
+        <Sphere args={[0.055, 8, 8]} position={[0, -0.56, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
+        </Sphere>
       </group>
 
       {/* === RIGHT ARM === */}
       <group ref={rightArmRef} position={[bw / 2 + 0.1, torsoY + bh / 2 - 0.1, 0]}>
-        <Box args={[0.16, 0.22, 0.16]} position={[0, -0.1, 0]} castShadow>
-          <meshStandardMaterial color={traits.hasJacket ? traits.jacketColor : traits.shirt} />
+        <Sphere args={[0.07, 8, 8]} position={[0, 0, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.hasJacket ? traits.jacketColor : traits.shirt} roughness={0.75} clearcoat={0.08} />
+        </Sphere>
+        <Box args={[0.14, 0.22, 0.14]} position={[0, -0.14, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.hasJacket ? traits.jacketColor : traits.shirt} roughness={0.75} clearcoat={0.08} />
         </Box>
-        <Box args={[0.14, 0.35, 0.14]} position={[0, -0.38, 0]} castShadow>
-          <meshStandardMaterial color={traits.skin} />
+        <Box args={[0.11, 0.3, 0.11]} position={[0, -0.38, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
         </Box>
-        <Box args={[0.1, 0.08, 0.1]} position={[0, -0.58, 0]} castShadow>
-          <meshStandardMaterial color={traits.skin} />
-        </Box>
+        <Sphere args={[0.055, 8, 8]} position={[0, -0.56, 0]} castShadow>
+          <meshPhysicalMaterial color={traits.skin} roughness={0.55} clearcoat={0.15} />
+        </Sphere>
       </group>
 
       {/* === CAPTION BUBBLE === */}
