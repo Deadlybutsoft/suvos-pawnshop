@@ -18,7 +18,7 @@ export function LevelSelect({ playerName, onSelectLevel }: Props) {
   return (
     <section
       className="relative min-h-screen overflow-hidden bg-cover bg-center flex flex-col items-center justify-center"
-      style={{ backgroundImage: "url('/level-bg.png')", backgroundColor: "var(--game-bg-0)" }}
+      style={{ backgroundImage: "url('/level-bg.webp')", backgroundColor: "var(--game-bg-0)" }}
     >
       <div className="absolute inset-0 bg-black/60" />
 

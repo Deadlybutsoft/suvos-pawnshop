@@ -26,7 +26,7 @@ export function OnboardingHero({ onStart }: OnboardingHeroProps) {
   return (
     <section
       className="relative min-h-screen overflow-hidden bg-cover bg-center flex flex-col items-center justify-end pb-16 cursor-pointer"
-      style={{ backgroundImage: "url('/pawnshop-hero.png')", backgroundColor: "var(--game-bg-0)" }}
+      style={{ backgroundImage: "url('/pawnshop-hero.webp')", backgroundColor: "var(--game-bg-0)" }}
       onClick={() => show && onStart()}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />

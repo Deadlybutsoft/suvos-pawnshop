@@ -35,18 +35,18 @@ function Room({
   const leftDoorRef = useRef<THREE.Group>(null);
   const rightDoorRef = useRef<THREE.Group>(null);
 
-  const floorTexture = useTexture("/floor.png");
+  const floorTexture = useTexture("/floor.webp");
   floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
   floorTexture.repeat.set(4, 6);
 
-  const wallTexture = useTexture("/wall.png");
-  const leftWallTex = useTexture("/left-wall.png");
-  const rightWallTex = useTexture("/right-wall.png");
-  const backWallTex = useTexture("/baclk-wall.png");
-  const frontWallTex = useTexture("/door-wall.png");
-  const ceilingTex = useTexture("/cling.png");
-  const doorLeftTex = useTexture("/door-left.png");
-  const doorRightTex = useTexture("/door-right.png");
+  const wallTexture = useTexture("/wall.webp");
+  const leftWallTex = useTexture("/left-wall.webp");
+  const rightWallTex = useTexture("/right-wall.webp");
+  const backWallTex = useTexture("/baclk-wall.webp");
+  const frontWallTex = useTexture("/door-wall.webp");
+  const ceilingTex = useTexture("/cling.webp");
+  const doorLeftTex = useTexture("/door-left.webp");
+  const doorRightTex = useTexture("/door-right.webp");
 
   // Door dimensions
   const doorW = 0.8;   // each door panel width
@@ -182,7 +182,7 @@ function Room({
 }
 
 function Counter({ position }: { position: [number, number, number] }) {
-  const tableTex = useTexture("/table.png");
+  const tableTex = useTexture("/table.webp");
 
   return (
     <group position={position}>

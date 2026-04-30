@@ -20,7 +20,7 @@ export function RulesScreen({ onAccept }: Props) {
   return (
     <section
       className="relative min-h-screen overflow-hidden bg-cover bg-center flex flex-col items-center justify-center"
-      style={{ backgroundImage: "url('/rules-bg.png')", backgroundColor: "var(--game-bg-0)" }}
+      style={{ backgroundImage: "url('/rules-bg.webp')", backgroundColor: "var(--game-bg-0)" }}
     >
       <div className="absolute inset-0 bg-black/65" />
 
