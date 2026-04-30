@@ -2036,6 +2036,7 @@ export default function App() {
       <Canvas
         shadows
         camera={{ position: [0, 1.6, 3], fov: 65, near: 0.1, far: 30 }}
+        style={{ position: "absolute", inset: 0, zIndex: 0 }}
       >
         {/* Bright sky blue background and fog for a fun, cheerful atmosphere */}
         <fog attach="fog" args={["#f0f9ff", 2, 22]} />

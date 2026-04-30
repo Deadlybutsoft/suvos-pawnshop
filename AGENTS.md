@@ -295,3 +295,29 @@ If you intentionally change direction, update this file in the same change set w
 | `EXPERT` | Appraiser (currently spawned via walk-in, experts also callable via phone) |
 | `DELIVERY` | Drops off packages |
 | `LANDLORD` | Demands rent payment |
+
+### Z-Index Layering
+
+The 3D Canvas must stay at `z-index: 0` (set via inline style on `<Canvas>`).  
+All HUD/UI elements use Tailwind z-classes above it:
+
+| Layer | Z-Index | Elements |
+|-------|---------|----------|
+| Canvas (3D) | `z-0` | Three.js scene |
+| HUD top bar | `z-10` | Money display, settings button, time |
+| NPC subtitles | `z-10` | Chat bubbles, reply/mic/dismiss buttons |
+| Bottom buttons | `z-40` | Inventory, Phone, Wait for Customer |
+| Phone UI | `z-30` | iPhone overlay + apps |
+| Modals | `z-50` | Inventory modal, shortcuts modal |
+| Call overlay | `z-[90]` | Expert phone call UI |
+| Game over | `z-[100]` | BUSTED / jail screen |
+| Settings | `z-20` | Pause/settings menu |
+
+### Known Issues & Notes
+
+- The `<Canvas>` must have `style={{ position: "absolute", inset: 0, zIndex: 0 }}` or it will stack above UI buttons
+- Some Wikimedia image URLs may 404 — the game still works, images just won't load for those items
+- Pre-existing TypeScript warning: `iconColor` property on phone app icons (non-blocking)
+- ElevenLabs TTS falls back to browser `speechSynthesis` if the API call fails
+- STT uses MediaRecorder (click to start, click to stop) — not continuous listening
+- Expert call messages are stateless per call (no persistence between calls)
