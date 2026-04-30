@@ -1,7 +1,7 @@
 <div align="center">
 <img width="1200" height="475" alt="Pawn Game Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 
-# 🏪 Pawn Game
+# 🏪 Suvo's Pawnshop
 
 **A 3D pawn shop simulator where you haggle with AI-powered NPCs, spot fakes, and try not to get arrested.**
 

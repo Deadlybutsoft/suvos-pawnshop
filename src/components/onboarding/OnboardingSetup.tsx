@@ -28,7 +28,7 @@ type OnboardingSetupProps = {
 
 const DEFAULTS: OnboardingSetupData = {
   ownerName: "",
-  shopName: "Golden Pawn",
+  shopName: "Suvo's Pawnshop",
   difficulty: "dealer",
   startingCash: 1500,
   captionsEnabled: true,
@@ -86,7 +86,7 @@ export default function OnboardingSetup({
         <header className="game-menu-header border-b px-6 py-5 flex items-center justify-between gap-4">
           <div>
             <div className="game-label">New Run</div>
-            <h1 className="game-title text-2xl md:text-3xl mt-1">Setup Your Pawn Shop</h1>
+            <h1 className="game-title text-2xl md:text-3xl mt-1">Setup Your Pawnshop</h1>
             <p className="game-text-muted text-sm mt-2">
               Lock in your owner profile, economy settings, and accessibility options.
             </p>
@@ -131,7 +131,7 @@ export default function OnboardingSetup({
               <input
                 value={shopName}
                 onChange={(e) => setShopName(e.target.value)}
-                placeholder="e.g. Golden Pawn"
+                placeholder="e.g. Suvo's Pawnshop"
                 className="game-input mt-2 w-full"
                 maxLength={36}
                 required

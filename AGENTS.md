@@ -4,7 +4,7 @@ This document is the persistent UI/UX design reference for all future contributo
 
 ## Purpose
 
-Maintain a **cohesive game-like visual identity** for the Pawn Game app.  
+Maintain a **cohesive game-like visual identity** for the Suvo's Pawnshop app.  
 When adding or editing UI, follow this guide so new features match the existing style and do not drift into generic web-app aesthetics.
 
 ---

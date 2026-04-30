@@ -92,7 +92,7 @@ export default function App() {
   const [onboardingConfig, setOnboardingConfig] = useState<OnboardingSetupData>(
     {
       ownerName: "",
-      shopName: "Golden Pawn",
+      shopName: "Suvo's Pawnshop",
       difficulty: "dealer",
       startingCash: 1500,
       captionsEnabled: true,
@@ -789,7 +789,7 @@ export default function App() {
           <div className="game-menu-shell game-scanlines flex h-full max-h-[620px] w-full max-w-5xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <aside className="game-menu-sidebar hidden w-64 shrink-0 p-6 md:block">
               <div className="mb-10">
-                <div className="game-label">Pawn Shop</div>
+                <div className="game-label">Suvo's Pawnshop</div>
                 <h2 className="game-title mt-3 text-4xl tracking-tight">
                   Paused
                 </h2>
