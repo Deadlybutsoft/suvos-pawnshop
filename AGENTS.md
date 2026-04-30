@@ -205,3 +205,93 @@ When introducing a new UI pattern:
 
 Any agent or engineer touching UI is responsible for preserving this system.  
 If you intentionally change direction, update this file in the same change set with rationale.
+
+---
+
+## Game Architecture Reference
+
+### Tech Stack
+
+- **Frontend:** React + TypeScript + Vite + Tailwind CSS
+- **3D Scene:** react-three-fiber + drei (Three.js)
+- **AI Dialogue:** Groq SDK (Llama 3.1 8B) — stateless chat completions with manual message history
+- **Voice TTS:** ElevenLabs REST API (`/v1/text-to-speech/{voice_id}`) — NPC voices
+- **Voice STT:** ElevenLabs REST API (`/v1/speech-to-text`) — player mic via MediaRecorder
+- **Images:** Wikimedia Commons thumbnail URLs, cached in memory
+
+### API Keys
+
+- Keys are loaded from `.env.local` via Vite `define` (build-time injection)
+- Players can override keys in the in-game Settings menu (stored in `localStorage`)
+- Priority: `localStorage` user key → `.env.local` default key
+- Env vars: `GROQ_API_KEY`, `ELEVENLABS_API_KEY`
+
+### Core Game Loop
+
+1. NPCs spawn through the door (sellers, buyers, collectors)
+2. Player negotiates via text input or voice (ElevenLabs STT)
+3. NPC responds via Groq LLM + ElevenLabs TTS
+4. Deals trigger `[ACTION: DEAL $X]` — updates money, inventory, transactions
+5. NPCs leave via `[ACTION: LEAVE]` or after a deal
+
+### Item System (`src/lib/items.ts`)
+
+- **150 historical items** across 15 categories: Weapons, Jewelry, Art, Antiques, Ceramics, Navigation, Instruments, Manuscripts, Relics, Armor, Textiles, Sculptures, Coins, Timepieces, Tools
+- Each item: `id`, `name`, `description`, `region`, `category`, `baseValue`, `rarity`, `image` (Wikimedia URL)
+- Rarity tiers: common, uncommon, rare, legendary
+- Focus: European and Asian historical artifacts
+- `getCachedImage()` ensures same item always shows same image
+
+### Authenticity System
+
+- **60% authentic, 30% fake, 10% stolen** (determined at spawn via `spawnItem()`)
+- Hidden flags: `isAuthentic`, `isStolen` — player never sees these directly
+- **Fake items:** Seller NPC gets AI prompt to drop subtle clues (vague provenance, nervous behavior, inconsistent dates)
+- **Stolen items:** Seller NPC gets AI prompt to be evasive, eager to sell fast
+- **Consequences:**
+  - Sell a fake to a buyer → **JAILED / Game Over**
+  - Sell stolen goods → **JAILED / Game Over**
+  - Buy stolen goods → 50% chance police catch you → **JAILED / Game Over**
+
+### Expert Calling System
+
+- 3 expert contacts on the iPhone: Dr. Harrison ($100), Prof. Miller ($150), Mr. Vance ($200)
+- Call flow: ring (2s) → 50/50 pickup → fee deducted → AI conversation about current item
+- Expert knows the truth (fake/stolen/authentic) and hints accordingly
+- Full chat UI with text input + ElevenLabs TTS for expert voice
+- Located in iPhone → Contacts app
+
+### Starting Inventory
+
+- Player begins with 5 random authentic items (generated via `getStartingInventory()`)
+- Ensures buyers have something to purchase from the start
+
+### Game Over Screen
+
+- Triggered by selling fakes, selling stolen goods, or buying stolen goods (if caught)
+- Shows: reason, money earned, items traded, inventory value
+- "Try Again" returns to hero/onboarding screen
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/App.tsx` | Main game component — all UI, state, game logic |
+| `src/lib/items.ts` | Item database, authenticity system, spawn logic |
+| `src/lib/npcPrompts.ts` | NPC personality definitions and system prompts |
+| `src/components/scene/PawnShop.tsx` | 3D pawn shop scene (room, doors, furniture) |
+| `src/components/scene/NPCCharacter.tsx` | 3D NPC character rendering and animation |
+| `src/index.css` | All `game-*` CSS classes and `--game-*` tokens |
+| `vite.config.ts` | Build config, env var injection |
+| `.env.local` | API keys (GROQ_API_KEY, ELEVENLABS_API_KEY) |
+
+### NPC Types
+
+| Type | Behavior |
+|------|----------|
+| `SELLER` | Brings items to sell — player haggles to buy low |
+| `BUYER` | Wants to buy from inventory — player haggles to sell high |
+| `COLLECTOR` | High-end buyer, willing to pay more for rare items |
+| `EXPERT` | Appraiser (currently spawned via walk-in, experts also callable via phone) |
+| `DELIVERY` | Drops off packages |
+| `LANDLORD` | Demands rent payment |

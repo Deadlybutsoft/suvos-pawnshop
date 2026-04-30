@@ -47,7 +47,6 @@ function Room({
   const ceilingTex = useTexture("/cling.png");
   const doorLeftTex = useTexture("/door-left.png");
   const doorRightTex = useTexture("/door-right.png");
-  const hallwayTex = useTexture("/hall.png");
 
   // Door dimensions
   const doorW = 0.8;   // each door panel width
@@ -112,10 +111,26 @@ function Room({
         <meshBasicMaterial map={frontWallTex} />
       </Box>
 
-      {/* Hallway backdrop behind door */}
+      {/* Dark gradient behind door opening */}
       <mesh position={[0, doorH / 2, depth / 2 + 0.5]} rotation={[0, 0, 0]}>
         <planeGeometry args={[gapW, doorH]} />
-        <meshBasicMaterial map={hallwayTex} />
+        <shaderMaterial
+          vertexShader={`
+            varying vec2 vUv;
+            void main() {
+              vUv = uv;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `}
+          fragmentShader={`
+            varying vec2 vUv;
+            void main() {
+              float darkness = smoothstep(0.0, 0.7, 1.0 - vUv.y);
+              gl_FragColor = vec4(0.0, 0.0, 0.0, mix(0.6, 1.0, darkness));
+            }
+          `}
+          transparent
+        />
       </mesh>
 
       {/* Left door — hinged at left edge, opens inward */}

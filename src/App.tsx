@@ -40,7 +40,7 @@ import {
   Send,
   Package,
 } from "lucide-react";
-import { GoogleGenAI } from "@google/genai";
+import Groq from "groq-sdk";
 import {
   getRandomCustomer,
   getRandomNPCByType,
@@ -48,6 +48,8 @@ import {
   NPCType,
 } from "./lib/npcPrompts";
 import { getRandomPawnItem } from "./lib/items";
+import type { SpawnedItem } from "./lib/items";
+import { spawnItem, getStartingInventory, getCachedImage } from "./lib/items";
 import { CameraSetup } from "./components/scene/CameraSetup";
 import { NPCCharacter } from "./components/scene/NPCCharacter";
 import { Lighting } from "./components/scene/Lighting";
@@ -61,6 +63,12 @@ import OnboardingSetup, {
 export default function App() {
   const [money, setMoney] = useState(1500);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // User-overridable API keys (localStorage backed, fallback to env)
+  const [userGroqKey, setUserGroqKey] = useState(() => localStorage.getItem("userGroqKey") || "");
+  const [userElevenLabsKey, setUserElevenLabsKey] = useState(() => localStorage.getItem("userElevenLabsKey") || "");
+  const groqKey = userGroqKey || process.env.GROQ_API_KEY || "";
+  const elevenLabsKey = userElevenLabsKey || process.env.ELEVENLABS_API_KEY || "";
   const validSteps = ["hero", "setup", "game"] as const;
   type Step = (typeof validSteps)[number];
   const hashToStep = (): Step => {
@@ -100,9 +108,10 @@ export default function App() {
       isLeaving: boolean;
       chatHistory: { role: "model" | "user"; text: string }[];
       currentLine: string; // the string they are currently saying
-      chatSession: any; // the gemini session
+      chatSession: { systemPrompt: string; messages: { role: "user" | "assistant"; content: string }[] }; // groq chat state
       position: [number, number, number]; // target standing pos
       item: string;
+      itemData?: SpawnedItem;
       hasItemBox: boolean;
     }[]
   >([]);
@@ -131,9 +140,17 @@ export default function App() {
 
   // Inventory State
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
-  const [inventory, setInventory] = useState<{name: string; region: string; boughtFor: number; date: string}[]>([]);
+  const [inventory, setInventory] = useState<{name: string; region: string; boughtFor: number; date: string; image?: string; isAuthentic?: boolean; isStolen?: boolean; category?: string; description?: string}[]>(() => {
+    return getStartingInventory().map(i => ({ name: i.name, region: i.region, boughtFor: Math.floor(i.baseValue * 0.6), date: "Day 1", image: getCachedImage(i), isAuthentic: i.isAuthentic, isStolen: i.isStolen, category: i.category, description: i.description }));
+  });
   const [tradeHistory, setTradeHistory] = useState<{name: string; type: "bought" | "sold"; amount: number; date: string}[]>([]);
   const [inventorySearch, setInventorySearch] = useState("");
+
+  // Game over state
+  const [gameOver, setGameOver] = useState<{ reason: string } | null>(null);
+
+  // Expert calling state
+  const [activeCall, setActiveCall] = useState<{ contact: string; status: "ringing" | "connected" | "unavailable" | "ended"; messages: { role: "user" | "assistant"; content: string }[]; fee: number } | null>(null);
 
   // Messages App State
   const [messagesAppActiveChat, setMessagesAppActiveChat] = useState<
@@ -293,37 +310,18 @@ export default function App() {
   }, []);
 
   const aiRef = useRef<any>(null);
-  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     try {
-      if (process.env.GEMINI_API_KEY) {
-        aiRef.current = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      if (groqKey) {
+        aiRef.current = new Groq({ apiKey: groqKey, dangerouslyAllowBrowser: true });
       } else {
-        console.warn("GEMINI_API_KEY is not set.");
+        console.warn("No Groq API key set.");
       }
     } catch (e) {
       console.error(e);
     }
-
-    // Init Speech Recognition
-    const SpeechRec =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (SpeechRec) {
-      const recognition = new SpeechRec();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.onresult = (event: any) => {
-        const text = event.results[0][0].transcript;
-        setInputText(text);
-        setIsListening(false);
-      };
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
-      recognitionRef.current = recognition;
-    }
-  }, []);
+  }, [groqKey]);
 
   const playClickSound = () => {
     try {
@@ -346,33 +344,34 @@ export default function App() {
     } catch (e) {}
   };
 
-  const speakText = (text: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      const voices = window.speechSynthesis.getVoices();
-      const maleVoice =
-        voices.find(
-          (v) =>
-            (v.name.includes("Daniel") ||
-              v.name.includes("Alex") ||
-              v.name.includes("David") ||
-              v.name.includes("Mark") ||
-              v.name.includes("Guy")) &&
-            v.lang.startsWith("en"),
-        ) ||
-        voices.find((v) => v.lang.startsWith("en-US")) ||
-        voices[0];
-
-      if (maleVoice) {
-        utterance.voice = maleVoice;
+  const speakText = async (text: string) => {
+    if (!elevenLabsKey) {
+      console.warn("No ElevenLabs API key set, skipping TTS");
+      return;
+    }
+    try {
+      const voiceId = "JBFqnCBsd6RMkjVDRZzb"; // default male voice
+      const res = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+        {
+          method: "POST",
+          headers: { "xi-api-key": elevenLabsKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ text, model_id: "eleven_multilingual_v2" }),
+        },
+      );
+      if (!res.ok) throw new Error(`ElevenLabs TTS error: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      audio.play();
+    } catch (e) {
+      console.error("ElevenLabs TTS failed, falling back to browser:", e);
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
       }
-
-      // Force male pitch
-      utterance.pitch = 0.8;
-      utterance.rate = 1.0;
-      window.speechSynthesis.speak(utterance);
     }
   };
 
@@ -389,20 +388,22 @@ export default function App() {
       ? getRandomNPCByType(specificType)
       : getRandomCustomer();
 
-    const itemInfo = getRandomPawnItem();
-    const baseValue = Math.floor(Math.random() * 900) + 100;
+    const spawnedItem = spawnItem();
+    const baseValue = spawnedItem.baseValue;
     const minPrice = Math.floor(baseValue * 0.7);
     const maxBudget = Math.floor(baseValue * 1.3);
     const rentAmount = Math.floor(Math.random() * 1500) + 1000;
 
     let storyPrompt = "";
     if (npcDefinition.type === "SELLER") {
-      storyPrompt = ` You possess a rare/historical item: ${itemInfo.name} from ${itemInfo.region}. Make up a creative, fun story about how you acquired it, why you want to sell it, and state your asking price (which should be around $${minPrice}).`;
+      const fakeHint = !spawnedItem.isAuthentic ? " IMPORTANT: This item is actually a FAKE/REPRODUCTION. You do NOT know it's fake (or you're hiding it). Drop subtle clues: be vague about provenance, mix up dates slightly, avoid specific details about the item's history, seem nervous or overly eager to sell quickly." : "";
+      const stolenHint = spawnedItem.isStolen ? " IMPORTANT: This item is STOLEN. You are nervous, want to sell fast, avoid questions about where you got it, and get agitated if pressed for documentation." : "";
+      storyPrompt = ` You possess a rare/historical item: ${spawnedItem.name} — ${spawnedItem.description} from ${spawnedItem.region}. Category: ${spawnedItem.category}. Make up a creative, fun story about how you acquired it, why you want to sell it, and state your asking price (which should be around $${minPrice}).${fakeHint}${stolenHint}`;
     } else if (
       npcDefinition.type === "BUYER" ||
       npcDefinition.type === "COLLECTOR"
     ) {
-      storyPrompt = ` You are looking to buy a rare/historical item: ${itemInfo.name} from ${itemInfo.region}. Make up a creative reason why you desperately need it, and state your starting offer (which should be around $${maxBudget}).`;
+      storyPrompt = ` You are looking to buy a rare/historical item: ${spawnedItem.name} — ${spawnedItem.description} from ${spawnedItem.region}. Category: ${spawnedItem.category}. Make up a creative reason why you desperately need it, and state your starting offer (which should be around $${maxBudget}).`;
     }
 
     // Clone with specific specifics
@@ -410,7 +411,7 @@ export default function App() {
       ...npcDefinition,
       systemPrompt:
         npcDefinition.systemPrompt
-          .replace(/\[ITEM_NAME\]/g, itemInfo.name)
+          .replace(/\[ITEM_NAME\]/g, spawnedItem.name)
           .replace(/\[MIN_PRICE\]/g, `$${minPrice}`)
           .replace(/\[MAX_PRICE\]/g, `$${maxBudget}`)
           .replace(/\[RENT_AMOUNT\]/g, `$${rentAmount}`) + storyPrompt,
@@ -420,12 +421,10 @@ export default function App() {
 
     let session = null;
     if (aiRef.current) {
-      session = aiRef.current.chats.create({
-        model: "gemini-2.5-flash",
-        config: {
-          systemInstruction: npc.systemPrompt,
-        },
-      });
+      session = {
+        systemPrompt: npc.systemPrompt,
+        messages: [] as { role: "user" | "assistant"; content: string }[],
+      };
     }
 
     const newNPC = {
@@ -436,7 +435,8 @@ export default function App() {
       currentLine: "...",
       chatSession: session,
       position: pos,
-      item: itemInfo.name,
+      item: spawnedItem.name,
+      itemData: spawnedItem,
       hasItemBox:
         npc.type === "SELLER" ||
         npc.type === "BUYER" ||
@@ -462,14 +462,20 @@ export default function App() {
     fallbackNpc: any,
   ) => {
     const npcObj = activeNPCs.find((n) => n.id === id) || fallbackNpc;
-    if (!npcObj || !npcObj.chatSession) return;
+    if (!npcObj || !npcObj.chatSession || !aiRef.current) return;
 
     setIsTyping(true);
     try {
-      const response = await npcObj.chatSession.sendMessage({
-        message: prompt,
+      npcObj.chatSession.messages.push({ role: "user", content: prompt });
+      const completion = await aiRef.current.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: npcObj.chatSession.systemPrompt },
+          ...npcObj.chatSession.messages,
+        ],
       });
-      let text = response.text || "";
+      let text = completion.choices[0]?.message?.content || "";
+      npcObj.chatSession.messages.push({ role: "assistant", content: text });
 
       let dealAmount = 0;
       const dealMatch = text.match(/\[ACTION:\s*DEAL\s*\$([\d.]+)\]/i);
@@ -509,10 +515,24 @@ export default function App() {
 
         // Update inventory
         if (npcObj.npc.type === "SELLER") {
-          const itemData = { name: npcObj.item, region: "", boughtFor: dealAmount, date: new Date().toLocaleDateString() };
-          setInventory(prev => [...prev, itemData]);
+          const si = npcObj.itemData;
+          const itemEntry = { name: npcObj.item, region: si?.region || "", boughtFor: dealAmount, date: new Date().toLocaleDateString(), image: si ? getCachedImage(si) : undefined, isAuthentic: si?.isAuthentic, isStolen: si?.isStolen, category: si?.category, description: si?.description };
+          setInventory(prev => [...prev, itemEntry]);
           setTradeHistory(prev => [{ name: npcObj.item, type: "bought", amount: dealAmount, date: new Date().toLocaleDateString() }, ...prev]);
+
+          // If bought stolen goods — random chance police catch you
+          if (si?.isStolen && Math.random() < 0.5) {
+            setTimeout(() => setGameOver({ reason: "You purchased stolen property! The police traced the item back to your shop." }), 2000);
+          }
         } else if (npcObj.npc.type === "BUYER" || npcObj.npc.type === "COLLECTOR") {
+          // Check if the item being sold is fake or stolen — GAME OVER
+          const soldItem = inventory.find(i => i.name === npcObj.item);
+          if (soldItem && soldItem.isAuthentic === false) {
+            setTimeout(() => setGameOver({ reason: `You sold a COUNTERFEIT "${npcObj.item}" to a customer. The fraud was discovered and you've been arrested!` }), 2000);
+          }
+          if (soldItem && soldItem.isStolen === true) {
+            setTimeout(() => setGameOver({ reason: `You sold STOLEN property "${npcObj.item}". The buyer reported it and police traced it to your shop!` }), 2000);
+          }
           setInventory(prev => {
             const idx = prev.findIndex(i => i.name === npcObj.item);
             if (idx === -1) return prev;
@@ -579,16 +599,49 @@ export default function App() {
     }
   };
 
-  const startListening = () => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      alert("Speech recognition not supported in this browser.");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  const startListening = async () => {
+    if (!elevenLabsKey) {
+      alert("No ElevenLabs API key set.");
+      return;
+    }
+    if (isListening) {
+      // Stop recording
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => chunks.push(e.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setIsListening(false);
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        try {
+          const form = new FormData();
+          form.append("file", blob, "recording.webm");
+          form.append("model_id", "scribe_v2");
+          const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+            method: "POST",
+            headers: { "xi-api-key": elevenLabsKey },
+            body: form,
+          });
+          if (!res.ok) throw new Error(`STT error: ${res.status}`);
+          const data = await res.json();
+          if (data.text) setInputText(data.text);
+        } catch (e) {
+          console.error("ElevenLabs STT failed:", e);
+        }
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsListening(true);
+    } catch (e) {
+      console.error("Mic access denied:", e);
+      alert("Microphone access denied.");
     }
   };
 
@@ -596,13 +649,84 @@ export default function App() {
     setActiveNPCs((prev) =>
       prev.map((n) => (n.id === id ? { ...n, isLeaving: true } : n)),
     );
-    // Open door for NPC exit, close after they walk out
     setDoorOpen(true);
     setTimeout(() => setDoorOpen(false), 2500);
     setTimeout(() => {
       setActiveNPCs((prev) => prev.filter((n) => n.id !== id));
       if (selectedNpcId === id) setSelectedNpcId(null);
     }, 4000);
+  };
+
+  // Expert calling system
+  const callExpert = async (contactName: string, role: string, fee: number) => {
+    setActiveCall({ contact: contactName, status: "ringing", messages: [], fee });
+
+    // Simulate ring for 2 seconds
+    await new Promise(r => setTimeout(r, 2000));
+
+    // 50/50 chance of picking up
+    if (Math.random() < 0.5) {
+      setActiveCall(prev => prev ? { ...prev, status: "unavailable" } : null);
+      setTimeout(() => setActiveCall(null), 2000);
+      return;
+    }
+
+    // Deduct fee
+    setMoney(prev => prev - fee);
+
+    // Get current item being negotiated
+    const currentNpc = activeNPCs.find(n => n.id === selectedNpcId) || activeNPCs[0];
+    const itemName = currentNpc?.item || "unknown item";
+    const itemData = currentNpc?.itemData;
+
+    const systemPrompt = `You are ${contactName}, a ${role}. A pawn shop owner is calling you to ask about an item: "${itemName}"${itemData ? ` — ${itemData.description}. Category: ${itemData.category}, Region: ${itemData.region}.` : "."} ${
+      itemData && !itemData.isAuthentic ? "This item is actually a FAKE. Give subtle hints that something seems off — mention inconsistencies in craftsmanship, materials, or dating. Do NOT directly say it's fake, but express professional doubt." :
+      itemData && itemData.isStolen ? "This item is actually STOLEN. You may have heard rumors about a recent theft matching this description. Hint at it cautiously." :
+      "This item is AUTHENTIC. Confirm its likely authenticity based on your expertise, mention key features to look for."
+    } Keep responses to 1-2 sentences. Be professional but characterful.`;
+
+    setActiveCall(prev => prev ? { ...prev, status: "connected" } : null);
+
+    // Get initial greeting from expert
+    if (aiRef.current) {
+      try {
+        const completion = await aiRef.current.chat.completions.create({
+          model: "llama-3.1-8b-instant",
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: `Hi, I need your opinion on a ${itemName} someone brought into my shop.` }],
+        });
+        const text = completion.choices[0]?.message?.content || "Hello, what can I help with?";
+        setActiveCall(prev => prev ? { ...prev, messages: [{ role: "user", content: `About this ${itemName}...` }, { role: "assistant", content: text }] } : null);
+        speakText(text);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const sendCallMessage = async (msg: string) => {
+    if (!activeCall || activeCall.status !== "connected" || !aiRef.current) return;
+    const updated = [...activeCall.messages, { role: "user" as const, content: msg }];
+    setActiveCall(prev => prev ? { ...prev, messages: updated } : null);
+
+    try {
+      const currentNpc = activeNPCs.find(n => n.id === selectedNpcId) || activeNPCs[0];
+      const itemData = currentNpc?.itemData;
+      const systemPrompt = `You are ${activeCall.contact}, an expert appraiser on a phone call. The pawn shop owner is asking about "${currentNpc?.item || "an item"}". ${
+        itemData && !itemData.isAuthentic ? "This item is FAKE. Give subtle professional doubt without directly saying fake." :
+        itemData && itemData.isStolen ? "This item may be STOLEN. Hint cautiously." :
+        "This item is AUTHENTIC. Confirm authenticity."
+      } Keep responses to 1-2 sentences.`;
+
+      const completion = await aiRef.current.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "system", content: systemPrompt }, ...updated],
+      });
+      const text = completion.choices[0]?.message?.content || "";
+      setActiveCall(prev => prev ? { ...prev, messages: [...updated, { role: "assistant", content: text }] } : null);
+      speakText(text);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   if (onboardingStep === "hero") {
@@ -779,6 +903,48 @@ export default function App() {
                 >
                   Keyboard Shortcuts
                 </button>
+
+                <div className="game-setting-row p-5">
+                  <label className="game-title mb-1 block text-sm tracking-[0.18em]">
+                    Groq API Key
+                  </label>
+                  <p className="game-text-muted mb-3 text-xs">
+                    Optional — override the default key with your own.
+                  </p>
+                  <input
+                    type="password"
+                    className="game-input w-full p-3 text-sm"
+                    placeholder="gsk_..."
+                    value={userGroqKey}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setUserGroqKey(v);
+                      if (v) localStorage.setItem("userGroqKey", v);
+                      else localStorage.removeItem("userGroqKey");
+                    }}
+                  />
+                </div>
+
+                <div className="game-setting-row p-5">
+                  <label className="game-title mb-1 block text-sm tracking-[0.18em]">
+                    ElevenLabs API Key
+                  </label>
+                  <p className="game-text-muted mb-3 text-xs">
+                    Optional — override the default key with your own.
+                  </p>
+                  <input
+                    type="password"
+                    className="game-input w-full p-3 text-sm"
+                    placeholder="xi_..."
+                    value={userElevenLabsKey}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setUserElevenLabsKey(v);
+                      if (v) localStorage.setItem("userElevenLabsKey", v);
+                      else localStorage.removeItem("userElevenLabsKey");
+                    }}
+                  />
+                </div>
               </div>
 
               <footer className="game-menu-footer flex items-center justify-between border-t px-6 py-5">
@@ -892,6 +1058,76 @@ export default function App() {
         </div>
       )}
 
+      {/* GAME OVER — JAILED */}
+      {gameOver && (
+        <div className="game-overlay pointer-events-auto absolute inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.92)" }}>
+          <div className="game-menu-shell w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300 text-center">
+            <div className="p-8">
+              <div className="text-6xl mb-4">🚔</div>
+              <h2 className="game-title text-4xl tracking-widest mb-2" style={{ color: "var(--game-danger)" }}>BUSTED</h2>
+              <p className="game-text-muted text-base mb-6">{gameOver.reason}</p>
+              <div className="game-panel p-4 mb-6 text-left space-y-2">
+                <div className="flex justify-between"><span className="game-text-dim text-sm">Money Earned</span><span className="game-text-accent font-bold">${money.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="game-text-dim text-sm">Items Traded</span><span className="game-text-accent font-bold">{tradeHistory.length}</span></div>
+                <div className="flex justify-between"><span className="game-text-dim text-sm">Inventory Value</span><span className="game-text-accent font-bold">${inventory.reduce((s, i) => s + i.boughtFor, 0).toLocaleString()}</span></div>
+              </div>
+              <button onClick={() => { setGameOver(null); setOnboardingStep("hero"); }} className="game-button-primary px-10 py-4 text-lg">
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVE CALL OVERLAY */}
+      {activeCall && (
+        <div className="game-overlay pointer-events-auto absolute inset-0 z-[90] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.85)" }}>
+          <div className="game-menu-shell w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-[var(--game-surface-panel)] flex items-center justify-center mx-auto mb-3 text-2xl font-bold" style={{ color: "var(--game-accent)" }}>
+                {activeCall.contact.charAt(0)}
+              </div>
+              <h3 className="game-title text-xl tracking-widest">{activeCall.contact}</h3>
+              <p className="game-text-dim text-sm mt-1">
+                {activeCall.status === "ringing" ? "📞 Ringing..." : activeCall.status === "unavailable" ? "❌ No answer — unavailable" : activeCall.status === "connected" ? `🟢 Connected · $${activeCall.fee} charged` : "Call ended"}
+              </p>
+            </div>
+            {activeCall.status === "connected" && (
+              <div className="px-6 pb-4">
+                <div className="space-y-3 max-h-48 overflow-y-auto [&::-webkit-scrollbar]:hidden mb-4">
+                  {activeCall.messages.map((m, i) => (
+                    <div key={i} className={`text-sm p-3 rounded-xl ${m.role === "assistant" ? "game-panel" : "bg-[var(--game-surface-raised)]"}`}>
+                      <span className="game-text-dim text-xs block mb-1">{m.role === "assistant" ? activeCall.contact : "You"}</span>
+                      <span className="game-text-muted">{m.content}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    className="game-input flex-1 p-3 text-sm"
+                    placeholder="Ask about the item..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
+                        sendCallMessage((e.target as HTMLInputElement).value.trim());
+                        (e.target as HTMLInputElement).value = "";
+                      }
+                    }}
+                  />
+                  <button onClick={() => setActiveCall(null)} className="game-button px-4 py-3 text-sm" style={{ color: "var(--game-danger)" }}>
+                    Hang Up
+                  </button>
+                </div>
+              </div>
+            )}
+            {(activeCall.status === "unavailable" || activeCall.status === "ringing") && (
+              <div className="px-6 pb-6 text-center">
+                {activeCall.status === "ringing" && <div className="game-text-dim text-sm animate-pulse">Waiting for answer...</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showShortcuts && (
         <div
           className="game-overlay pointer-events-auto absolute inset-0 z-50 flex items-center justify-center p-4"
@@ -977,7 +1213,7 @@ export default function App() {
                   className={`${isListening && selectedNpcId === n.id ? "bg-red-600 hover:bg-red-700 text-white border-red-300" : "game-button text-[#fff2cf]"} px-4 py-2 text-sm rounded-lg transition-all duration-150 hover:scale-105 active:scale-90 active:opacity-75 flex items-center gap-2`}
                 >
                   {isListening && selectedNpcId === n.id
-                    ? "Listening..."
+                    ? "Stop Mic"
                     : "Use Mic"}
                 </button>
                 <button
@@ -1596,80 +1832,25 @@ export default function App() {
                     </div>
                     <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden pb-8">
                       {[
-                        {
-                          name: "Mom",
-                          desc: "Family",
-                          type: undefined,
-                          color: "bg-pink-500/20 text-pink-400",
-                        },
-                        {
-                          name: "Dad",
-                          desc: "Family",
-                          type: undefined,
-                          color: "bg-blue-500/20 text-blue-400",
-                        },
-                        {
-                          name: "Son",
-                          desc: "Family",
-                          type: undefined,
-                          color: "bg-green-500/20 text-green-400",
-                        },
-                        {
-                          name: "Mike",
-                          desc: "Friend",
-                          type: undefined,
-                          color: "bg-yellow-500/20 text-yellow-500",
-                        },
-                        {
-                          name: "Sarah",
-                          desc: "Friend",
-                          type: undefined,
-                          color: "bg-purple-500/20 text-purple-400",
-                        },
-                        {
-                          name: "David",
-                          desc: "Friend",
-                          type: undefined,
-                          color: "bg-orange-500/20 text-orange-400",
-                        },
-                        {
-                          name: "Dr. Harrison",
-                          desc: "Historian Expert",
-                          type: "EXPERT",
-                          color: "bg-gray-500/20 text-gray-400",
-                        },
-                        {
-                          name: "Prof. Miller",
-                          desc: "Antique Appraiser",
-                          type: "EXPERT",
-                          color: "bg-indigo-500/20 text-indigo-400",
-                        },
-                        {
-                          name: "Mr. Vance",
-                          desc: "Rich Collector",
-                          type: "COLLECTOR",
-                          color: "bg-emerald-500/20 text-emerald-400",
-                        },
-                        {
-                          name: "Lady Smith",
-                          desc: "Art Collector",
-                          type: "COLLECTOR",
-                          color: "bg-rose-500/20 text-rose-400",
-                        },
-                        {
-                          name: "Local Museum",
-                          desc: "Historical Society",
-                          type: "EXPERT",
-                          color: "bg-teal-500/20 text-teal-400",
-                        },
+                        { name: "Mom", desc: "Family", expertRole: "", fee: 0, color: "bg-pink-500/20 text-pink-400" },
+                        { name: "Dad", desc: "Family", expertRole: "", fee: 0, color: "bg-blue-500/20 text-blue-400" },
+                        { name: "Son", desc: "Family", expertRole: "", fee: 0, color: "bg-green-500/20 text-green-400" },
+                        { name: "Mike", desc: "Friend", expertRole: "", fee: 0, color: "bg-yellow-500/20 text-yellow-500" },
+                        { name: "Sarah", desc: "Friend", expertRole: "", fee: 0, color: "bg-purple-500/20 text-purple-400" },
+                        { name: "David", desc: "Friend", expertRole: "", fee: 0, color: "bg-orange-500/20 text-orange-400" },
+                        { name: "Dr. Harrison", desc: "Historian · $100/call", expertRole: "historian specializing in European and Asian antiquities", fee: 100, color: "bg-gray-500/20 text-gray-400" },
+                        { name: "Prof. Miller", desc: "Appraiser · $150/call", expertRole: "antique appraiser with 30 years of experience in authentication", fee: 150, color: "bg-indigo-500/20 text-indigo-400" },
+                        { name: "Mr. Vance", desc: "Museum Exec · $200/call", expertRole: "museum executive and art authentication specialist", fee: 200, color: "bg-emerald-500/20 text-emerald-400" },
                       ].map((contact, idx) => (
                         <button
                           key={idx}
                           onClick={() => {
                             playClickSound();
-                            setIsPhoneOpen(false);
-                            setPhoneApp(null);
-                            spawnNPC(contact.type as NPCType | undefined);
+                            if (contact.expertRole) {
+                              callExpert(contact.name, contact.expertRole, contact.fee);
+                              setPhoneApp(null);
+                              setIsPhoneOpen(false);
+                            }
                           }}
                           className="w-full px-6 py-3 border-b border-white/10 hover:bg-white/5 text-left flex items-center gap-4 transition-all duration-150 active:scale-[0.98] active:opacity-70 group"
                         >
